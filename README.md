@@ -95,7 +95,9 @@ uv run --frozen solar-forge-desktop
 ```
 
 The app writes to the operating system's per-user application data directory so tasks
-persist between launches. On first native launch, it copies an existing database from
+persist between launches. A new local installation asks you to choose the data folder
+and a separate folder for future backups; automatic backups are still planned. On first
+native launch, it copies an existing database from
 the former Luna Life Helper app data directory into the new location. For an isolated
 test run, set `SOLAR_FORGE_DESKTOP_DATA_DIR` to a new, empty **absolute** directory
 before launch. For example, on Linux use

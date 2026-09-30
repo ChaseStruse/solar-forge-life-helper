@@ -10,7 +10,7 @@ This is a roadmap, not a claim that these capabilities exist today. Each phase s
 
 ## Current starting point
 
-- The app has one SQLite database, local accounts, and profile-scoped records across twelve modules. Its path comes from Qt's application data location or an environment variable; there is no in-app path picker or backup schedule yet.
+- The app has one SQLite database, local accounts, and profile-scoped records across twelve modules. New local installations have a first-run data and backup folder picker. Existing installations keep their current database; there is no in-app move flow or backup schedule yet.
 - `Storage` owns schema version 14 and upgrade snapshots. The launcher copies an older Luna database on first use. These snapshots and imports are not a user backup system.
 - Docker Compose currently runs the app with `network_mode: none`, so it cannot contact an Ollama or llama.cpp server on the host or LAN. That isolation should remain the default until an explicit local-model connection is configured.
 - The accounts are separate; there is no household membership, shared record policy, notification service, or AI integration.
@@ -127,8 +127,8 @@ If families later need the app on several devices, design a local household host
 
 Start with Phase 1 in three small changes:
 
-1. Introduce a tested settings/configuration layer that resolves the current database path without changing existing installations. Document precedence among saved choice, environment override, and default.
-2. Add a Settings screen for the current data path and a backup folder picker, including directory validation. At this point, selecting a backup folder is configuration only; label it clearly until automated backups ship.
+1. **Completed:** Add a tested settings/configuration layer that resolves the current database path without changing existing installations. Document precedence among saved choice, environment override, and default.
+2. **In progress:** Add a first-run data and backup folder picker, then a Settings screen for viewing and changing those paths. Selecting a backup folder is configuration only until automated backups ship.
 3. Add the verified database move flow and the Compose host-folder setup path. Test failure recovery and preservation of old data before enabling the move button in normal use.
 
 Phase 2 follows immediately so the backup location becomes useful. Keep each slice independently reviewable and commit changes early and often, as required by `AGENTS.md`.

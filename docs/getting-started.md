@@ -25,9 +25,11 @@ uv run --frozen solar-forge-desktop
 
 The local launcher stores data in the operating system's per-user application data directory. To choose a different location, set `SOLAR_FORGE_DESKTOP_DATA_DIR` to an **absolute** path before launching. See [Data and migration](data-and-migration.md) for the database name and the old-app import behavior.
 
+On a new local installation, the app first asks you to choose a data folder and a separate folder for future backups. The suggested folders are ready to use. The backup choice is saved, but automatic backups are still being built. Existing installations continue using their current database. If a saved data folder later goes missing, the app asks you to reconnect it or locate the existing database instead of starting with an empty one.
+
 ## First account
 
-On a new database, choose **Create account**. Usernames are 3–80 characters and may contain lowercase letters, digits, dots, hyphens, and underscores. The app converts uppercase letters to lowercase. Passwords must have at least 8 characters.
+After choosing storage on a new installation, select **Create account**. Usernames are 3–80 characters and may contain lowercase letters, digits, dots, hyphens, and underscores. The app converts uppercase letters to lowercase. Passwords must have at least 8 characters.
 
 The first account claims an existing unclaimed Home profile if the database has one. Later accounts have separate records. Each launch asks you to sign in, and **Sign out** returns to the sign-in screen.
 

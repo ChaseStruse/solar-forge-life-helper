@@ -12,6 +12,10 @@ Solar Forge Life Helper stores account credentials, profile settings, and app re
 
 You can choose another Docker volume with `SOLAR_FORGE_DESKTOP_VOLUME_NAME`. Changing the volume or local data directory changes which database the app opens; it does not move data from the old location automatically.
 
+On a new local installation, the first-run screen lets you choose the data and future backup folders. The app stores those folder choices in `settings.json` under Qt's per-user application config directory, outside the database. At startup, `SOLAR_FORGE_DESKTOP_DATA_DIR` takes precedence over the saved data folder, which takes precedence over the operating system default. An environment override is meant for deliberate, often disposable runs; it does not replace the saved choice. A saved folder must still contain `solar-forge-desktop.db` on later launches, or the app asks you to locate the existing data.
+
+Docker Compose currently fixes the in-container data path at `/data`, so the native folder picker does not choose arbitrary host folders for Docker. A host-side folder setup and a Settings screen for changing saved locations remain planned. Selecting a backup folder now records your preference; automatic backups and restore are not yet available.
+
 ## Import an earlier Luna desktop database
 
 The import runs only when the new `solar-forge-desktop.db` does not yet exist. It copies the old `luna-desktop.db` with SQLite's backup API, checks its integrity, and leaves the source untouched. On first launch the app checks, in order:
