@@ -1,0 +1,51 @@
+services:
+  desktop:
+    build:
+      context: .
+      dockerfile: Dockerfile.run
+      args:
+        SOLAR_FORGE_DESKTOP_UID: ${SOLAR_FORGE_DESKTOP_UID:-1000}
+        SOLAR_FORGE_DESKTOP_GID: ${SOLAR_FORGE_DESKTOP_GID:-1000}
+    image: solar-forge-desktop:dev
+    init: true
+    network_mode: none
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    user: "${SOLAR_FORGE_DESKTOP_UID:-1000}:${SOLAR_FORGE_DESKTOP_GID:-1000}"
+    environment:
+      QT_QPA_PLATFORM: wayland
+      XDG_RUNTIME_DIR: /tmp
+      WAYLAND_DISPLAY: wayland-0
+      SOLAR_FORGE_DESKTOP_DATA_DIR: /data
+      SOLAR_FORGE_DESKTOP_CONFIG_DIR: /config
+      SOLAR_FORGE_DESKTOP_BACKUP_DIR: /backups
+      SOLAR_FORGE_DESKTOP_LEGACY_DATA_DIR: /legacy-data
+      PYTHONPATH: /desktop/src
+      HOME: /tmp
+    command: ["/desktop/.venv/bin/python", "-m", "solar_forge_desktop"]
+    volumes:
+      - type: bind
+        source: ./src
+        target: /desktop/src
+        read_only: true
+      - type: bind
+        source: ${XDG_RUNTIME_DIR:?A Linux Wayland session is required}/${WAYLAND_DISPLAY:?A Linux Wayland session is required}
+        target: /tmp/wayland-0
+        read_only: true
+      - solar_forge_desktop_data:/data
+      - solar_forge_desktop_config:/config
+      - solar_forge_desktop_backups:/backups
+      - type: bind
+        source: ${SOLAR_FORGE_DESKTOP_LEGACY_DATA_DIR:-${XDG_DATA_HOME:-${HOME}/.local/share}/luna-life-helper-python-desktop}
+        target: /legacy-data
+        read_only: true
+    labels:
+      org.solar-forge-life-helper.component: desktop
+
+volumes:
+  solar_forge_desktop_data:
+    name: ${SOLAR_FORGE_DESKTOP_VOLUME_NAME:-solar-forge-life-helper-python-desktop}
+  solar_forge_desktop_config:
+  solar_forge_desktop_backups:

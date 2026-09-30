@@ -1,0 +1,19 @@
+# Send only the files used by Dockerfile.run and Dockerfile.test.
+*
+!pyproject.toml
+!uv.lock
+!src/
+!src/**
+!tests/
+!tests/**
+!scripts/
+!scripts/**
+
+# Never include local data even if it appears under a build input directory.
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.db-journal
+**/backups/
+**/__pycache__/
+**/*.py[codz]
