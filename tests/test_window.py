@@ -80,6 +80,38 @@ def test_task_window_creates_completes_and_deletes(qtbot, monkeypatch, tmp_path:
     reopened.close()
 
 
+def test_task_sharing_controls_and_member_view(qtbot, tmp_path: Path) -> None:
+    storage = Storage(tmp_path / "solar-forge.db")
+    owner = storage.default_profile_id()
+    member = storage.create_profile("Member")
+    service = TaskService(storage)
+    window = TaskWindow(service, owner, lambda: None)
+    qtbot.addWidget(window)
+    window.show()
+    window.show_tasks()
+    qtbot.waitUntil(lambda: window.active_heading.text() == "Active Tasks (0)")
+    window.title_input.setText("Family errand")
+    window.task_visibility.setCurrentIndex(window.task_visibility.findData("household"))
+    qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: window.active_heading.text() == "Active Tasks (1)")
+    task = service.list_tasks(owner)[0][0]
+    assert task.visibility == "household"
+    assert window.task_visibility.currentData() == "private"
+    sharing = window.findChild(QPushButton, f"taskVisibility_{task.id}")
+    assert sharing.text() == "Household"
+    window.close()
+
+    member_window = TaskWindow(service, member, lambda: None)
+    qtbot.addWidget(member_window)
+    member_window.show()
+    member_window.show_tasks()
+    qtbot.waitUntil(lambda: member_window.active_heading.text() == "Active Tasks (1)")
+    assert member_window.findChild(QPushButton, f"taskDelete_{task.id}") is None
+    assert member_window.findChild(QPushButton, f"taskVisibility_{task.id}") is None
+    member_window.close()
+    storage.close()
+
+
 def test_delete_dialog_uses_solar_forge_colors_and_requires_confirmation(qtbot) -> None:
     dialog = DeleteTaskDialog("<b>Sample</b>", None)
     qtbot.addWidget(dialog)

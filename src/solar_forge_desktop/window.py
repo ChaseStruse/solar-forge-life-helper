@@ -9,6 +9,7 @@ from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QFrame,
     QGridLayout,
@@ -102,6 +103,9 @@ QPushButton#profileButton { background: #8b5cf6; color: #facc15;
 QLineEdit { background: #211b39; color: #f3f4f6; border: 1px solid #39314e;
             border-radius: 10px; padding: 11px 15px; }
 QLineEdit:focus { border-color: #8b5cf6; }
+QComboBox#taskVisibility { background: #211b39; color: #f3f4f6;
+    border: 1px solid #39314e; border-radius: 9px; padding: 8px 12px; }
+QComboBox#taskVisibility QAbstractItemView { background: #211b39; color: #f3f4f6; }
 QPushButton { background: #292143; color: #f3f4f6; border: 1px solid #483a64;
               border-radius: 10px; padding: 10px 15px; }
 QPushButton:hover { background: #3d315d; }
@@ -765,6 +769,16 @@ class TaskWindow(QMainWindow):
         self.add_button.clicked.connect(self.add_task)
         entry_row.addWidget(self.add_button)
         entry_layout.addLayout(entry_row)
+        visibility_row = QHBoxLayout()
+        visibility_row.addWidget(QLabel("Visible to"))
+        self.task_visibility = QComboBox()
+        self.task_visibility.setObjectName("taskVisibility")
+        self.task_visibility.setAccessibleName("Task visibility")
+        self.task_visibility.addItem("Only me", "private")
+        self.task_visibility.addItem("Household", "household")
+        visibility_row.addWidget(self.task_visibility)
+        visibility_row.addStretch()
+        entry_layout.addLayout(visibility_row)
         left.addWidget(entry_card)
 
         self.active_card, self.active_heading, self.active_layout = self._make_list("Active Tasks")
@@ -809,6 +823,7 @@ class TaskWindow(QMainWindow):
     def _set_busy(self, busy: bool) -> None:
         self.add_button.setEnabled(not busy)
         self.title_input.setEnabled(not busy)
+        self.task_visibility.setEnabled(not busy)
 
     def _show_error(self, error: Exception) -> None:
         self.status.setText(
@@ -825,16 +840,26 @@ class TaskWindow(QMainWindow):
             self.status.setText("Task title is required.")
             self.title_input.setFocus()
             return
-        self._submit(lambda: self.service.add_task(self.profile_id, title), self._after_add)
+        visibility = self.task_visibility.currentData()
+        self._submit(
+            lambda: self.service.add_task(self.profile_id, title, visibility), self._after_add
+        )
 
     def _after_add(self, _result: object) -> None:
         self.title_input.clear()
+        self.task_visibility.setCurrentIndex(0)
         self.title_input.setFocus()
         self.refresh()
 
     def toggle_task(self, task_id: int) -> None:
         self._submit(
             lambda: self.service.toggle_task(self.profile_id, task_id), lambda _: self.refresh()
+        )
+
+    def change_task_visibility(self, task_id: int, visibility: str) -> None:
+        self._submit(
+            lambda: self.service.set_visibility(self.profile_id, task_id, visibility),
+            lambda _: self.refresh(),
         )
 
     def delete_task(self, task_id: int, title: str) -> None:
@@ -901,16 +926,32 @@ class TaskWindow(QMainWindow):
                 completed_time.setObjectName("completionTime")
                 text_column.addWidget(completed_time)
             row_layout.addLayout(text_column, 1)
-            delete = QPushButton("✕")
-            delete.setProperty("role", "delete")
-            delete.setObjectName(f"taskDelete_{task.id}")
-            delete.setAccessibleName(f"Delete {task.title}")
-            delete.clicked.connect(
-                lambda _checked=False, task_id=task.id, name=task.title: self.delete_task(
-                    task_id, name
+            if task.profile_id == self.profile_id:
+                sharing = QPushButton(
+                    "Household" if task.visibility == "household" else "Only me"
                 )
-            )
-            row_layout.addWidget(delete)
+                sharing.setObjectName(f"taskVisibility_{task.id}")
+                sharing.setAccessibleName(f"Change visibility for {task.title}")
+                next_visibility = (
+                    "private" if task.visibility == "household" else "household"
+                )
+                sharing.clicked.connect(
+                    lambda _checked=False, task_id=task.id, value=next_visibility:
+                    self.change_task_visibility(task_id, value)
+                )
+                row_layout.addWidget(sharing)
+                delete = QPushButton("✕")
+                delete.setProperty("role", "delete")
+                delete.setObjectName(f"taskDelete_{task.id}")
+                delete.setAccessibleName(f"Delete {task.title}")
+                delete.clicked.connect(
+                    lambda _checked=False, task_id=task.id, name=task.title: self.delete_task(
+                        task_id, name
+                    )
+                )
+                row_layout.addWidget(delete)
+            else:
+                row_layout.addWidget(QLabel("Household"))
             layout.addWidget(row)
 
     def closeEvent(self, event) -> None:

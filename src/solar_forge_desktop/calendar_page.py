@@ -201,6 +201,12 @@ class CalendarPage(QWidget):
         self.category_input = self._input("Event tag", "Personal")
         self.category_input.setMaxLength(50)
         self._form_field(form, "Tag", self.category_input)
+        self.visibility_input = QComboBox()
+        self.visibility_input.setObjectName("calendarInput")
+        self.visibility_input.setAccessibleName("Event visibility")
+        self.visibility_input.addItem("Only me", "private")
+        self.visibility_input.addItem("Household", "household")
+        self._form_field(form, "Visible to", self.visibility_input)
         self.all_day_input = QCheckBox("All-day event")
         self.all_day_input.toggled.connect(self._update_fields)
         form.addWidget(self.all_day_input)
@@ -408,15 +414,20 @@ class CalendarPage(QWidget):
         category = _label(tag, "calendarMuted")
         category.setStyleSheet(f"color: {tag_color(event.category)};")
         box.addWidget(category)
+        box.addWidget(_label(
+            "Household" if event.visibility == "household" else "Only me",
+            "calendarMuted",
+        ))
         if mode == "week" and event.description:
             box.addWidget(_label(event.description, "calendarMuted"))
         actions = QHBoxLayout()
         edit = _button("✎", "calendarSecondary", lambda: self.edit_event(event.id))
         edit.setAccessibleName(f"Edit {event.title}")
-        remove = _button("×", "calendarDanger", lambda: self.delete_event(event))
-        remove.setAccessibleName(f"Remove {event.title}")
         actions.addWidget(edit)
-        actions.addWidget(remove)
+        if event.profile_id == self.profile_id:
+            remove = _button("×", "calendarDanger", lambda: self.delete_event(event))
+            remove.setAccessibleName(f"Remove {event.title}")
+            actions.addWidget(remove)
         actions.addStretch()
         box.addLayout(actions)
         return card
@@ -431,6 +442,8 @@ class CalendarPage(QWidget):
         self.title_input.clear()
         self.description_input.clear()
         self.category_input.clear()
+        self.visibility_input.setCurrentIndex(0)
+        self.visibility_input.setEnabled(True)
         self.all_day_input.setChecked(False)
         self.end_date_enabled.setChecked(False)
         self.end_time_enabled.setChecked(False)
@@ -459,6 +472,8 @@ class CalendarPage(QWidget):
         self.title_input.setText(event.title)
         self.description_input.setPlainText(event.description or "")
         self.category_input.setText(event.category)
+        self.visibility_input.setCurrentIndex(self.visibility_input.findData(event.visibility))
+        self.visibility_input.setEnabled(event.profile_id == self.profile_id)
         self.all_day_input.setChecked(event.all_day)
         _set_date(self.start_date_input, event.starts_at.date())
         self.start_time_input.setTime(QTime(event.starts_at.hour, event.starts_at.minute))
@@ -497,9 +512,12 @@ class CalendarPage(QWidget):
                                          self.description_input.toPlainText(),
                                          self.category_input.text())
         event_id = self.edit_id
+        visibility = (self.visibility_input.currentData()
+                      if self.visibility_input.isEnabled() else None)
         self._worker.submit(
             lambda: self.service.save(self.profile_id, title, description, category,
-                                      start, end, all_day, recurrence, until, event_id),
+                                      start, end, all_day, recurrence, until, event_id,
+                                      visibility),
             lambda _: self._after_save(title.strip(), start_day, event_id),
         )
 

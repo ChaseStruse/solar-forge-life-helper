@@ -4,7 +4,7 @@ from datetime import date
 from pathlib import Path
 
 from PySide6.QtCore import QDate, Qt
-from PySide6.QtWidgets import QLabel, QMessageBox
+from PySide6.QtWidgets import QLabel, QMessageBox, QPushButton
 
 from solar_forge_desktop.calendar import CalendarService
 from solar_forge_desktop.storage import Storage
@@ -85,3 +85,47 @@ def test_calendar_all_day_validation_and_delete(qtbot, monkeypatch, tmp_path: Pa
     qtbot.waitUntil(lambda: page.status.text() == "Removed Trip.")
     assert service.view(profile, date(2026, 9, 28)).event_count == 0
     window.close()
+
+
+def test_calendar_sharing_form_and_member_edit(qtbot, tmp_path: Path) -> None:
+    storage = Storage(tmp_path / "solar-forge.db")
+    owner = storage.default_profile_id()
+    member = storage.create_profile("Member")
+    service = CalendarService(storage)
+    window = TaskWindow(TaskService(storage), owner, lambda: None)
+    qtbot.addWidget(window)
+    window.show()
+    window.show_calendar()
+    page = window.calendar_page
+    qtbot.waitUntil(lambda: bool(page.period_label.text()))
+    page.title_input.setText("Family outing")
+    page.category_input.setText("Family")
+    page.start_date_input.setDate(QDate(2026, 9, 28))
+    page.visibility_input.setCurrentIndex(page.visibility_input.findData("household"))
+    qtbot.mouseClick(page.save_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: page.status.text() == "Added Family outing.")
+    event = next(items[0].event for _, items in service.view(owner, date(2026, 9, 28)).days
+                 if items)
+    assert event.visibility == "household"
+    assert page.visibility_input.currentData() == "private"
+    window.close()
+
+    member_window = TaskWindow(TaskService(storage), member, lambda: None)
+    qtbot.addWidget(member_window)
+    member_window.show()
+    member_window.show_calendar()
+    member_page = member_window.calendar_page
+    member_page.selected = date(2026, 9, 28)
+    member_page.refresh()
+    qtbot.waitUntil(lambda: member_page.count_label.text() == "1 event")
+    assert member_page.findChildren(QPushButton, "calendarDanger") == []
+    member_page.edit_event(event.id)
+    assert member_page.visibility_input.currentData() == "household"
+    assert not member_page.visibility_input.isEnabled()
+    member_page.title_input.setText("Updated outing")
+    qtbot.mouseClick(member_page.save_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: member_page.status.text() == "Updated Updated outing.")
+    assert service.get(owner, event.id).title == "Updated outing"
+    assert service.get(owner, event.id).visibility == "household"
+    member_window.close()
+    storage.close()

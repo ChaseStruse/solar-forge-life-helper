@@ -4,9 +4,15 @@ import calendar as months
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 
-from solar_forge_desktop.storage import CalendarEvent, Profile, Storage, utc_now
+from solar_forge_desktop.household_access import (
+    can_read,
+    member_ids,
+    require_actor,
+    require_visibility,
+)
+from solar_forge_desktop.storage import CalendarEvent, Storage, utc_now
 
 RECURRENCES = ("none", "daily", "weekly", "monthly", "yearly")
 TAG_COLORS = ("#8b5cf6", "#ec4899", "#06b6d4", "#10b981", "#f59e0b", "#6366f1")
@@ -23,6 +29,8 @@ class Event:
     all_day: bool
     recurrence: str
     recurrence_until: date | None
+    profile_id: int | None = None
+    visibility: str = "private"
 
 
 @dataclass(frozen=True)
@@ -104,7 +112,8 @@ def _event(row: CalendarEvent) -> Event:
     return Event(row.id, row.title, row.description, row.category,
                  datetime.fromisoformat(row.starts_at), datetime.fromisoformat(row.ends_at),
                  row.all_day, row.recurrence,
-                 date.fromisoformat(row.recurrence_until) if row.recurrence_until else None)
+                 date.fromisoformat(row.recurrence_until) if row.recurrence_until else None,
+                 row.profile_id, row.visibility)
 
 
 def _bounds(selected: date, mode: str) -> tuple[date, date, date, date, str]:
@@ -136,10 +145,13 @@ class CalendarService:
             raise ValueError("Choose a valid calendar view.")
         first, last, previous, next_date, label = _bounds(selected, mode)
         with self.storage.sessions() as session:
-            if session.get(Profile, profile_id) is None:
-                raise ValueError("Profile not found.")
+            household_profiles = member_ids(session, profile_id)
             rows = session.scalars(select(CalendarEvent).where(
-                CalendarEvent.profile_id == profile_id,
+                or_(
+                    CalendarEvent.profile_id == profile_id,
+                    and_(CalendarEvent.visibility == "household",
+                         CalendarEvent.profile_id.in_(household_profiles)),
+                ),
                 CalendarEvent.starts_at < datetime.combine(last + timedelta(days=1),
                                                           time.min).isoformat(),
             ).order_by(CalendarEvent.starts_at, CalendarEvent.id)).all()
@@ -161,16 +173,16 @@ class CalendarService:
 
     def get(self, profile_id: int, event_id: int) -> Event:
         with self.storage.sessions() as session:
-            row = session.scalar(select(CalendarEvent).where(
-                CalendarEvent.id == event_id, CalendarEvent.profile_id == profile_id))
-            if row is None:
+            require_actor(session, profile_id)
+            row = session.get(CalendarEvent, event_id)
+            if row is None or not can_read(session, profile_id, row.profile_id, row.visibility):
                 raise ValueError("Calendar event not found.")
             return _event(row)
 
     def save(self, profile_id: int, title: str, description: str | None, category: str,
              starts_at: datetime, ends_at: datetime, all_day: bool = False,
              recurrence: str = "none", recurrence_until: date | None = None,
-             event_id: int | None = None) -> int:
+             event_id: int | None = None, visibility: str | None = None) -> int:
         title = title.strip() if isinstance(title, str) else ""
         category = category.strip() if isinstance(category, str) else ""
         description = description.strip() if isinstance(description, str) else ""
@@ -196,16 +208,24 @@ class CalendarService:
             if recurrence_until < starts_at.date():
                 raise ValueError("Repeat-until date cannot be before the event starts.")
         with self.storage.sessions.begin() as session:
-            if session.get(Profile, profile_id) is None:
-                raise ValueError("Profile not found.")
+            require_actor(session, profile_id)
             if event_id is None:
-                row = CalendarEvent(profile_id=profile_id, created_at=utc_now())
+                row = CalendarEvent(
+                    profile_id=profile_id, created_at=utc_now(),
+                    visibility=require_visibility(
+                        visibility if visibility is not None else "private"
+                    ),
+                )
                 session.add(row)
             else:
-                row = session.scalar(select(CalendarEvent).where(
-                    CalendarEvent.id == event_id, CalendarEvent.profile_id == profile_id))
-                if row is None:
+                row = session.get(CalendarEvent, event_id)
+                if row is None or not can_read(session, profile_id, row.profile_id, row.visibility):
                     raise ValueError("Calendar event not found.")
+                if visibility is not None:
+                    new_visibility = require_visibility(visibility)
+                    if row.profile_id != profile_id and new_visibility != row.visibility:
+                        raise ValueError("Only the owner can change visibility.")
+                    row.visibility = new_visibility
             row.title, row.description, row.category = title, description or None, category
             row.starts_at, row.ends_at = starts_at.isoformat(), ends_at.isoformat()
             row.all_day, row.recurrence = all_day, recurrence
@@ -215,6 +235,7 @@ class CalendarService:
 
     def delete(self, profile_id: int, event_id: int) -> None:
         with self.storage.sessions.begin() as session:
+            require_actor(session, profile_id)
             row = session.scalar(select(CalendarEvent).where(
                 CalendarEvent.id == event_id, CalendarEvent.profile_id == profile_id))
             if row is None:

@@ -415,6 +415,8 @@ class TaskItem:
     completed: bool
     created_at: str
     completed_at: str | None
+    profile_id: int | None = None
+    visibility: str = "private"
 
 
 @dataclass(frozen=True)
