@@ -37,7 +37,8 @@ def test_v15_upgrade_adds_reminders_without_changing_events(tmp_path: Path) -> N
 
 
 def test_due_recurring_event_deduplicates_and_honors_household(tmp_path: Path) -> None:
-    storage = Storage(tmp_path / "family.db")
+    path = tmp_path / "family.db"
+    storage = Storage(path)
     owner = storage.default_profile_id()
     member = storage.create_profile("Member")
     calendar = CalendarService(storage)
@@ -57,6 +58,11 @@ def test_due_recurring_event_deduplicates_and_honors_household(tmp_path: Path) -
     assert reminders.mark_delivered(member, due[0], now)
     assert reminders.due(member, now) == ()
     assert not reminders.mark_delivered(member, due[0], now)
+    storage.close()
+    storage = Storage(path)
+    calendar = CalendarService(storage)
+    reminders = CalendarReminderService(storage)
+    assert reminders.due(member, now) == ()
     next_day = datetime(2026, 10, 2, 22, 35, tzinfo=timezone.utc)
     assert len(reminders.due(member, next_day)) == 1
     calendar.save(owner, "Private dinner", None, "Family", datetime(2026, 10, 1, 18),
