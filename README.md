@@ -112,8 +112,9 @@ The app writes to the operating system's per-user application data directory so 
 persist between launches. A new local installation asks you to choose the data folder
 and a separate backup folder. Open **Settings** in the sidebar to edit those folders,
 select **Back up now**, and verify the latest backup. You can also enable daily or weekly
-backups and choose how many to keep. Scheduled backups run while the app is open. Restore is
-still planned. On a local
+backups and choose how many to keep. Scheduled backups run while the app is open. To restore,
+choose a listed backup in Settings and restart the app; the current database is saved for
+recovery first. On a local
 installation, changing the data folder copies and verifies the database on the next
 launch and retains the original. On first native launch,
 it copies an existing database from

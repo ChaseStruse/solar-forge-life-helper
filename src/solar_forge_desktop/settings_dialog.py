@@ -30,6 +30,7 @@ from solar_forge_desktop.configuration import DATABASE_NAME, AppSettings, Settin
 from solar_forge_desktop.data_move import validate_move_target
 from solar_forge_desktop.location_dialogs import STYLE
 from solar_forge_desktop.paths import default_backup_directory
+from solar_forge_desktop.restore import queue_restore
 from solar_forge_desktop.workers import BackgroundWorker
 
 
@@ -85,6 +86,7 @@ class StorageSettingsDialog(QDialog):
         self.store = store
         self.data_directory = data_directory
         self.scheduler = scheduler
+        self._busy = False
         self.can_change_data = not bool(os.environ.get("SOLAR_FORGE_DESKTOP_DATA_DIR"))
         self._worker = BackgroundWorker(self, "solar-forge-backup")
         self._worker.busy_changed.connect(self._set_busy)
@@ -190,6 +192,17 @@ class StorageSettingsDialog(QDialog):
         self._show_next_backup()
         if scheduler is not None:
             scheduler.status_changed.connect(self.backup_status.setText)
+        layout.addWidget(QLabel("Restore from backup"))
+        restore_row = QHBoxLayout()
+        self.restore_input = QComboBox()
+        self.restore_input.setAccessibleName("Backup to restore")
+        restore_row.addWidget(self.restore_input, 1)
+        self.restore_button = QPushButton("Restore…")
+        self.restore_button.clicked.connect(self._start_restore)
+        restore_row.addWidget(self.restore_button)
+        layout.addLayout(restore_row)
+        self.backup_input.textChanged.connect(self._refresh_restore_options)
+        self._refresh_restore_options()
         actions = QHBoxLayout()
         actions.addStretch()
         self.cancel_button = QPushButton("Cancel")
@@ -223,10 +236,14 @@ class StorageSettingsDialog(QDialog):
             )
 
     def _set_busy(self, busy: bool) -> None:
+        self._busy = busy
         for button in (
             self.backup_button, self.verify_button, self.save_button, self.cancel_button,
+            self.restore_button,
         ):
             button.setEnabled(not busy)
+        if not busy:
+            self.restore_button.setEnabled(self.restore_input.currentData() is not None)
 
     def _backup_failed(self, error: Exception) -> None:
         self.backup_status.setText(f"Backup check failed: {error}")
@@ -238,6 +255,7 @@ class StorageSettingsDialog(QDialog):
             message += f". Older backups could not be removed: {cleanup_error}"
         self.backup_status.setText(message)
         self._show_next_backup()
+        self._refresh_restore_options()
 
     def _start_backup(self) -> None:
         folder = Path(self.backup_input.text().strip())
@@ -272,6 +290,56 @@ class StorageSettingsDialog(QDialog):
 
     def _verified(self, info: BackupInfo) -> None:
         self.backup_status.setText(f"Backup verified: {info.database}")
+
+    def _refresh_restore_options(self) -> None:
+        self.restore_input.clear()
+        folder = Path(self.backup_input.text().strip()).expanduser()
+        if folder.is_dir():
+            for manifest in sorted(folder.glob("solar-forge-backup-*.json"), reverse=True):
+                self.restore_input.addItem(manifest.name, manifest)
+        if self.restore_input.count() == 0:
+            self.restore_input.addItem("No backups available", None)
+        self.restore_button.setEnabled(
+            self.restore_input.currentData() is not None and not self._busy
+        )
+
+    def _start_restore(self) -> None:
+        manifest = self.restore_input.currentData()
+        if manifest is None:
+            return
+        answer = QMessageBox.question(
+            self, "Restore backup on next launch?",
+            f"Restore {manifest.name}?\n\n"
+            "This will replace the current database on the next launch. "
+            "A separate recovery copy of the current database will be kept.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            save_backup_directory(
+                self.store, self.data_directory, Path(self.backup_input.text().strip())
+            )
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Could not choose backup folder", str(exc))
+            return
+        self.backup_status.setText("Verifying backup before planning restore…")
+        self._worker.submit(lambda: verify_backup(manifest), self._queue_verified_restore)
+
+    def _queue_verified_restore(self, info: BackupInfo) -> None:
+        try:
+            settings = self.store.load()
+            queue_restore(self.store, settings, info.manifest, verified=info)
+        except (OSError, ValueError) as exc:
+            self.backup_status.setText(f"Restore could not be planned: {exc}")
+            return
+        QMessageBox.information(
+            self, "Restore planned",
+            "Close and reopen Solar Forge Life Helper to restore this backup. "
+            "The current database will be saved separately for recovery.",
+        )
+        self.reject()
 
     def _browse(self) -> None:
         folder = QFileDialog.getExistingDirectory(

@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QMessageBox
 
-from solar_forge_desktop.backups import latest_backup
+from solar_forge_desktop.backups import create_backup, latest_backup
 from solar_forge_desktop.configuration import AppSettings, SettingsStore
 from solar_forge_desktop.settings_dialog import (
     StorageSettingsDialog,
@@ -113,3 +114,25 @@ def test_saving_schedule_keeps_storage_paths(tmp_path: Path) -> None:
     assert store.load() == AppSettings(
         data, backup, backup_schedule="weekly", backup_retention=4
     )
+
+
+def test_settings_can_queue_restore(qtbot, tmp_path: Path, monkeypatch) -> None:
+    data = tmp_path / "data"
+    storage = Storage(data / "solar-forge-desktop.db")
+    storage.create_profile("Family")
+    backup = tmp_path / "backup"
+    selected = create_backup(data / "solar-forge-desktop.db", backup)
+    storage.close()
+    store = SettingsStore(tmp_path / "config")
+    store.save(AppSettings(data, backup))
+    dialog = StorageSettingsDialog(store, data)
+    qtbot.addWidget(dialog)
+    dialog.show()
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.Yes
+    )
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: None)
+
+    qtbot.mouseClick(dialog.restore_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: store.load().pending_restore_manifest is not None, timeout=10000)
+    assert store.load().pending_restore_manifest == selected.manifest

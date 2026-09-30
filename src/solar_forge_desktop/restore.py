@@ -19,7 +19,10 @@ class RestoreRollbackFailed(RuntimeError):
     """The original database could not be reopened after a failed restore."""
 
 
-def queue_restore(store: SettingsStore, settings: AppSettings, manifest: Path) -> BackupInfo:
+def queue_restore(
+    store: SettingsStore, settings: AppSettings, manifest: Path,
+    verified: BackupInfo | None = None,
+) -> BackupInfo:
     if settings.pending_move_directory is not None:
         raise ValueError("Finish the planned data move before restoring a backup.")
     if settings.backup_directory is None:
@@ -27,7 +30,7 @@ def queue_restore(store: SettingsStore, settings: AppSettings, manifest: Path) -
     manifest = manifest.expanduser().resolve()
     if manifest.parent != settings.backup_directory.resolve():
         raise ValueError("Choose a backup from your selected backup folder.")
-    info = verify_backup(manifest)
+    info = verified if verified and verified.manifest == manifest else verify_backup(manifest)
     if not 1 <= info.schema_version <= 14:
         raise ValueError("This backup uses an unsupported database version.")
     store.save(replace(settings, pending_restore_manifest=manifest))
