@@ -211,6 +211,7 @@ tempCodeRunnerFile.py
 *.db-shm
 *.db-wal
 *.db-journal
+compose.override.yaml
 
 # PyPI configuration file
 .pypirc

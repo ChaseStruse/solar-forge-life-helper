@@ -70,6 +70,20 @@ To use a different persistent volume name, set it before starting:
 SOLAR_FORGE_DESKTOP_VOLUME_NAME=my-solar-forge-data docker compose up --build
 ```
 
+To store the standard Compose database in a host folder instead, stop the app and run:
+
+```bash
+python scripts/configure_compose_storage.py --data /absolute/path/to/family-data --backup /absolute/path/to/family-backups
+docker compose up --build
+```
+
+The command writes a local, ignored `compose.override.yaml`. On first start with an empty
+chosen data folder, the app copies the database from the previous Compose data location
+using SQLite's backup API and leaves the original in place. Run the command again to
+choose another host folder. The backup folder is saved for future backups; automatic
+backups are not available yet. Keep the same `SOLAR_FORGE_DESKTOP_VOLUME_NAME` if you
+previously customized it. The folders must be writable by the Compose app user.
+
 The volume is initialized with the app user's permissions. On Linux installations where
 the current user's numeric ID is not 1000, set `SOLAR_FORGE_DESKTOP_UID` and
 `SOLAR_FORGE_DESKTOP_GID` to the values from `id -u` and `id -g` before building.
@@ -97,8 +111,8 @@ uv run --frozen solar-forge-desktop
 The app writes to the operating system's per-user application data directory so tasks
 persist between launches. A new local installation asks you to choose the data folder
 and a separate folder for future backups; automatic backups are still planned. Open
-**Settings** in the sidebar to review the active data folder or change the future backup
-folder. On a local installation, **Move data…** copies and verifies the database on the next
+**Settings** in the sidebar to edit the data and future backup folders. On a local
+installation, changing the data folder copies and verifies the database on the next
 launch and retains the original. On first native launch,
 it copies an existing database from
 the former Luna Life Helper app data directory into the new location. For an isolated

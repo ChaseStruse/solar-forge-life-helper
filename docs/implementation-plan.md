@@ -71,7 +71,7 @@ flowchart LR
 
 **Safe move:** Validate the target directory, permissions, free space, and whether a database already exists. Explain the choice when a target contains data. Copy a live database with SQLite's backup API into a temporary file at the new location, run an integrity check, open it, then switch the configuration. Retain the source until the user chooses to remove it. Moving the database must not silently change the backup destination.
 
-**Compose detail:** A file picker inside a container cannot select an arbitrary host folder that is not mounted. Provide a small host-side setup command or launcher that asks for host data and backup folders and generates a local Compose override with bind mounts. Keep the current named-volume default for people who do not change settings. Document how to move from the named volume without deleting it.
+**Compose detail:** A file picker inside a container cannot select an arbitrary host folder that is not mounted. The host-side setup command now asks for host data and backup folders and generates a local Compose override with bind mounts. The named-volume default remains available, and the prior data mount is retained read only during a switch. Continue testing recovery from interrupted host-folder changes.
 
 **Done when:** New and existing users can select each location independently; paths survive restart; missing or unwritable paths produce a recovery screen instead of a new empty database; moving an existing database preserves accounts and all module records. Test native and Compose flows with disposable data.
 
@@ -129,7 +129,7 @@ Start with Phase 1 in three small changes:
 
 1. **Completed:** Add a tested settings/configuration layer that resolves the current database path without changing existing installations. Document precedence among saved choice, environment override, and default.
 2. **Completed:** The first-run picker and Settings screen expose the data location and let people change the future backup folder. Selecting a backup folder is configuration only until automated backups ship. Local users can queue a move for the next launch; the app copies and verifies the database before switching its saved choice and keeps the old file.
-3. Add the Compose host-folder setup path and broaden move failure recovery checks, including interrupted writes and external processes.
+3. **Completed in part:** The Compose host-folder setup path generates an ignored override and copies an existing database from the previous mount. Broaden move failure recovery checks, including interrupted writes and external processes.
 
 Phase 2 follows immediately so the backup location becomes useful. Keep each slice independently reviewable and commit changes early and often, as required by `AGENTS.md`.
 

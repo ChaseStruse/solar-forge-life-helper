@@ -6,6 +6,8 @@
 !src/**
 !tests/
 !tests/**
+!scripts/
+!scripts/**
 
 # Never include local data even if it appears under a build input directory.
 **/*.db

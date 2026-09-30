@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from solar_forge_desktop.auth import AuthService
 from solar_forge_desktop.auth_window import AuthWindow
-from solar_forge_desktop.bootstrap import import_legacy_database
+from solar_forge_desktop.bootstrap import import_legacy_database, import_previous_database
 from solar_forge_desktop.configuration import (
     DATABASE_NAME,
     AppSettings,
@@ -114,6 +114,7 @@ def main() -> int:
                 settings = AppSettings(replacement, settings.backup_directory)
                 save_choice = True
         data_path = directory / DATABASE_NAME
+        import_previous_database(data_path)
         import_legacy_database(app, data_path)
         storage = Storage(data_path)
         if (save_choice or (settings is None and not has_override)) and not has_override:
