@@ -8,5 +8,6 @@ Solar Forge Life Helper is a local Python/PySide6 desktop app for everyday plann
 - [Using the app](user-guide.md): navigate the dashboard and use each module.
 - [Data and migration](data-and-migration.md): find, move, and back up your data.
 - [Development](development.md): project layout, checks, and contribution workflow.
+- [Implementation plan](implementation-plan.md): the phased path to family sharing, user-chosen storage, backups, reminders, and a local assistant.
 
 The [repository README](../README.md) has a short project summary and launch commands.
