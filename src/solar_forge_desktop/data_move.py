@@ -11,8 +11,8 @@ from solar_forge_desktop.configuration import DATABASE_NAME, AppSettings, Settin
 from solar_forge_desktop.storage import Storage
 
 
-def queue_data_move(store: SettingsStore, settings: AppSettings, destination: Path) -> None:
-    """Record a requested move; the launcher performs it on the next start."""
+def validate_move_target(settings: AppSettings, destination: Path) -> Path:
+    """Check a requested destination without changing settings or touching files."""
     destination = destination.expanduser()
     if not destination.is_absolute():
         raise ValueError("Choose an absolute path for the new data folder.")
@@ -24,6 +24,12 @@ def queue_data_move(store: SettingsStore, settings: AppSettings, destination: Pa
         raise ValueError(f"This is not a folder: {destination}")
     if (destination / DATABASE_NAME).exists():
         raise ValueError("The new folder already contains a Solar Forge database.")
+    return destination
+
+
+def queue_data_move(store: SettingsStore, settings: AppSettings, destination: Path) -> None:
+    """Record a requested move; the launcher performs it on the next start."""
+    destination = validate_move_target(settings, destination)
     store.save(AppSettings(settings.data_directory, settings.backup_directory, destination))
 
 
