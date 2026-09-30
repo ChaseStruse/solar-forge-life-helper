@@ -1,5 +1,7 @@
 # Solar Forge Life Helper desktop (Python)
 
+See the [application documentation](docs/README.md) for setup, feature guides, data migration, and development notes.
+
 This is a source-run Python/PySide6 application. It opens with local sign-up or login,
 then shows a Dashboard with working Easy Budget, Task List, Easy Journal,
 Medicine Tracker, Habit Tracker, Calorie Tracker, Weight Tracker, Workout Tracker,
