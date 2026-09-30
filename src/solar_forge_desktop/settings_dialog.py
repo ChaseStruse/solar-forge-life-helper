@@ -14,10 +14,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from solar_forge_desktop.configuration import AppSettings, SettingsStore
+from solar_forge_desktop.backups import BackupInfo, create_backup, latest_backup, verify_backup
+from solar_forge_desktop.configuration import DATABASE_NAME, AppSettings, SettingsStore
 from solar_forge_desktop.data_move import validate_move_target
 from solar_forge_desktop.location_dialogs import STYLE
 from solar_forge_desktop.paths import default_backup_directory
+from solar_forge_desktop.workers import BackgroundWorker
 
 
 def save_storage_locations(
@@ -63,6 +65,10 @@ class StorageSettingsDialog(QDialog):
         self.store = store
         self.data_directory = data_directory
         self.can_change_data = not bool(os.environ.get("SOLAR_FORGE_DESKTOP_DATA_DIR"))
+        self._worker = BackgroundWorker(self, "solar-forge-backup")
+        self._worker.busy_changed.connect(self._set_busy)
+        self._worker.failed.connect(self._backup_failed)
+        self.finished.connect(lambda _result: self._worker.shutdown())
         self.setWindowTitle("Storage settings")
         self.setMinimumWidth(560)
         self.setStyleSheet(STYLE)
@@ -114,20 +120,81 @@ class StorageSettingsDialog(QDialog):
         browse.clicked.connect(self._browse)
         row.addWidget(browse)
         layout.addLayout(row)
-        note = QLabel("Automatic backups are not available yet. This saves the folder for them.")
+        note = QLabel(
+            "Backups are local and unencrypted. A cloud-synced folder may upload them. "
+            "Automatic backups are not available yet."
+        )
         note.setObjectName("hint")
         note.setWordWrap(True)
         layout.addWidget(note)
+        backup_actions = QHBoxLayout()
+        self.backup_button = QPushButton("Back up now")
+        self.backup_button.clicked.connect(self._start_backup)
+        backup_actions.addWidget(self.backup_button)
+        self.verify_button = QPushButton("Verify latest")
+        self.verify_button.clicked.connect(self._verify_latest)
+        backup_actions.addWidget(self.verify_button)
+        backup_actions.addStretch()
+        layout.addLayout(backup_actions)
+        self.backup_status = QLabel()
+        self.backup_status.setObjectName("hint")
+        self.backup_status.setWordWrap(True)
+        layout.addWidget(self.backup_status)
+        self._show_latest()
         actions = QHBoxLayout()
         actions.addStretch()
-        cancel = QPushButton("Cancel")
-        cancel.clicked.connect(self.reject)
-        actions.addWidget(cancel)
-        save = QPushButton("Save")
-        save.setObjectName("continue")
-        save.clicked.connect(self.accept)
-        actions.addWidget(save)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+        actions.addWidget(self.cancel_button)
+        self.save_button = QPushButton("Save")
+        self.save_button.setObjectName("continue")
+        self.save_button.clicked.connect(self.accept)
+        actions.addWidget(self.save_button)
         layout.addLayout(actions)
+
+    def _show_latest(self) -> None:
+        manifest = latest_backup(Path(self.backup_input.text().strip()).expanduser())
+        self.backup_status.setText(
+            f"Latest backup: {manifest.name}"
+            if manifest else "No manual backups in this folder yet."
+        )
+
+    def _set_busy(self, busy: bool) -> None:
+        for button in (
+            self.backup_button, self.verify_button, self.save_button, self.cancel_button,
+        ):
+            button.setEnabled(not busy)
+
+    def _backup_failed(self, error: Exception) -> None:
+        self.backup_status.setText(f"Backup check failed: {error}")
+
+    def _backup_done(self, info: BackupInfo) -> None:
+        self.backup_status.setText(f"Backup saved and verified: {info.database}")
+
+    def _start_backup(self) -> None:
+        folder = Path(self.backup_input.text().strip())
+        try:
+            save_backup_directory(self.store, self.data_directory, folder)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Could not choose backup folder", str(exc))
+            return
+        self.backup_status.setText("Creating and verifying backup…")
+        self._worker.submit(
+            lambda: create_backup(self.data_directory / DATABASE_NAME, folder),
+            self._backup_done,
+        )
+
+    def _verify_latest(self) -> None:
+        folder = Path(self.backup_input.text().strip()).expanduser()
+        manifest = latest_backup(folder)
+        if manifest is None:
+            self.backup_status.setText("No manual backups in this folder yet.")
+            return
+        self.backup_status.setText("Verifying latest backup…")
+        self._worker.submit(lambda: verify_backup(manifest), self._verified)
+
+    def _verified(self, info: BackupInfo) -> None:
+        self.backup_status.setText(f"Backup verified: {info.database}")
 
     def _browse(self) -> None:
         folder = QFileDialog.getExistingDirectory(

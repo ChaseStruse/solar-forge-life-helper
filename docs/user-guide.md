@@ -32,3 +32,5 @@ Use **Create an account** on the sign-in screen to add another local account. Re
 ## Your data
 
 Changes are stored in a local SQLite database. See [Data and migration](data-and-migration.md) before moving the app to another computer, changing its data directory, or deleting a Docker volume.
+
+Open **Settings** in the sidebar to choose the backup folder and select **Back up now**. The app makes a verified SQLite copy while you continue using the app, then shows the saved file path. **Verify latest** checks the newest backup again. Backups are unencrypted; a cloud-synced folder may upload them. Automatic backups and in-app restore are still planned.

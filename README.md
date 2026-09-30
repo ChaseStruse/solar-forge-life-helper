@@ -43,7 +43,7 @@ Compose builds the Python 3.14 image and displays the Qt window through the curr
 Wayland session. Tasks, budgets, journals, medicine logs, habits, calorie entries,
 weight records, workout logs, pet records, meal plans, maintenance items, calendar events,
 and profile settings persist in the Docker data volume
-`solar-forge-life-helper-python-desktop`. Storage preferences and the future backup folder
+`solar-forge-life-helper-python-desktop`. Storage preferences and the backup folder
 have separate persistent Compose volumes. `docker compose down` keeps all three volumes;
 `docker compose down -v` deletes them. The container has no network access. Press Ctrl+C to stop it, or
 run `docker compose down`.
@@ -80,8 +80,8 @@ docker compose up --build
 The command writes a local, ignored `compose.override.yaml`. On first start with an empty
 chosen data folder, the app copies the database from the previous Compose data location
 using SQLite's backup API and leaves the original in place. Run the command again to
-choose another host folder. The backup folder is saved for future backups; automatic
-backups are not available yet. Keep the same `SOLAR_FORGE_DESKTOP_VOLUME_NAME` if you
+choose another host folder. Use **Back up now** in Settings to write to that backup folder;
+automatic backups are not available yet. Keep the same `SOLAR_FORGE_DESKTOP_VOLUME_NAME` if you
 previously customized it. The folders must be writable by the Compose app user.
 
 The volume is initialized with the app user's permissions. On Linux installations where
@@ -110,8 +110,9 @@ uv run --frozen solar-forge-desktop
 
 The app writes to the operating system's per-user application data directory so tasks
 persist between launches. A new local installation asks you to choose the data folder
-and a separate folder for future backups; automatic backups are still planned. Open
-**Settings** in the sidebar to edit the data and future backup folders. On a local
+and a separate backup folder. Open **Settings** in the sidebar to edit those folders,
+select **Back up now**, and verify the latest backup. Automatic backups and restore are
+still planned. On a local
 installation, changing the data folder copies and verifies the database on the next
 launch and retains the original. On first native launch,
 it copies an existing database from

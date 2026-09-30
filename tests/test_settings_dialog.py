@@ -3,13 +3,16 @@
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import Qt
 
+from solar_forge_desktop.backups import latest_backup
 from solar_forge_desktop.configuration import AppSettings, SettingsStore
 from solar_forge_desktop.settings_dialog import (
     StorageSettingsDialog,
     save_backup_directory,
     save_storage_locations,
 )
+from solar_forge_desktop.storage import Storage
 
 
 def test_save_backup_directory_preserves_active_data_location(tmp_path: Path) -> None:
@@ -76,3 +79,25 @@ def test_launcher_controlled_data_field_is_read_only(qtbot, tmp_path: Path, monk
         save_storage_locations(
             store, tmp_path / "data", tmp_path / "other", tmp_path / "backup", False
         )
+
+
+def test_settings_can_create_and_verify_backup(qtbot, tmp_path: Path) -> None:
+    data = tmp_path / "data"
+    storage = Storage(data / "solar-forge-desktop.db")
+    storage.create_profile("Family")
+    backup = tmp_path / "backup"
+    store = SettingsStore(tmp_path / "config")
+    store.save(AppSettings(data, backup))
+    dialog = StorageSettingsDialog(store, data)
+    qtbot.addWidget(dialog)
+    dialog.show()
+
+    qtbot.mouseClick(dialog.backup_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: "saved and verified" in dialog.backup_status.text(), timeout=10000)
+    assert latest_backup(backup) is not None
+    qtbot.mouseClick(dialog.verify_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(
+        lambda: dialog.backup_status.text().startswith("Backup verified"), timeout=10000
+    )
+    dialog.close()
+    storage.close()
