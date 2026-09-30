@@ -1,6 +1,7 @@
 """User-facing storage preferences for the current desktop session."""
 
 import os
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -50,7 +51,9 @@ def save_storage_locations(
     if backup.exists() and not backup.is_dir():
         raise ValueError(f"This is not a folder: {backup}")
     backup.mkdir(parents=True, exist_ok=True)
-    store.save(AppSettings(selected_data, backup, pending))
+    base = current or AppSettings(selected_data)
+    store.save(replace(base, data_directory=selected_data, backup_directory=backup,
+                       pending_move_directory=pending))
     return changing_data
 
 

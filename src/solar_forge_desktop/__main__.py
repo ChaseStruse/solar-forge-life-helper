@@ -2,6 +2,7 @@
 
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QLockFile
@@ -91,7 +92,7 @@ def main() -> int:
                     None, "Data move could not finish",
                     f"Your original database has not been removed.\n\n{exc}",
                 )
-                settings = AppSettings(settings.data_directory, settings.backup_directory)
+                settings = replace(settings, pending_move_directory=None)
                 store.save(settings)
         save_choice = False
         new_setup = False
@@ -111,7 +112,7 @@ def main() -> int:
                 replacement = locate_existing_database(settings.data_directory)
                 if replacement is None:
                     return 1
-                settings = AppSettings(replacement, settings.backup_directory)
+                settings = replace(settings, data_directory=replacement)
                 save_choice = True
         data_path = directory / DATABASE_NAME
         import_previous_database(data_path)

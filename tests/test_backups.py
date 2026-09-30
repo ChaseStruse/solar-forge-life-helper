@@ -2,11 +2,18 @@
 
 import json
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
-from solar_forge_desktop.backups import create_backup, latest_backup, verify_backup
+from solar_forge_desktop.backups import (
+    create_backup,
+    latest_backup,
+    next_backup_due,
+    prune_backups,
+    verify_backup,
+)
 from solar_forge_desktop.configuration import DATABASE_NAME
 from solar_forge_desktop.storage import Storage
 
@@ -62,3 +69,37 @@ def test_backup_folder_must_be_separate(tmp_path: Path) -> None:
     storage.close()
     with pytest.raises(ValueError, match="separate"):
         create_backup(database, database.parent)
+
+
+def test_due_time_and_retention_keep_newest_verified_copies(tmp_path: Path) -> None:
+    database = tmp_path / "data" / DATABASE_NAME
+    storage = Storage(database)
+    folder = tmp_path / "backups"
+    first = create_backup(database, folder)
+    storage.create_profile("Family")
+    second = create_backup(database, folder)
+    third = create_backup(database, folder)
+    storage.close()
+
+    now = datetime.now(timezone.utc)
+    assert next_backup_due(folder, "off", now) is None
+    assert next_backup_due(folder, "daily", now) > now
+    assert next_backup_due(folder, "weekly", now) > now + timedelta(days=6)
+    assert prune_backups(folder, 2) == 1
+    assert not first.database.exists()
+    assert verify_backup(second.manifest) == second
+    assert verify_backup(third.manifest) == third
+
+
+def test_retention_does_not_delete_corrupt_backup(tmp_path: Path) -> None:
+    database = tmp_path / "data" / DATABASE_NAME
+    storage = Storage(database)
+    storage.close()
+    folder = tmp_path / "backups"
+    damaged = create_backup(database, folder)
+    damaged.database.write_bytes(b"damaged")
+    healthy = create_backup(database, folder)
+
+    assert prune_backups(folder, 1) == 0
+    assert damaged.database.exists()
+    assert verify_backup(healthy.manifest) == healthy

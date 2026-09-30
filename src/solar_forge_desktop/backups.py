@@ -8,7 +8,7 @@ import tempfile
 import uuid
 from contextlib import closing
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
 from pathlib import Path
 from urllib.parse import quote
@@ -42,7 +42,7 @@ def create_backup(database: Path, folder: Path) -> BackupInfo:
     if folder.resolve() == database.parent.resolve():
         raise ValueError("Choose a backup folder separate from the data folder.")
     folder.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     name = f"solar-forge-backup-{stamp}-{uuid.uuid4().hex[:8]}"
     published = folder / f"{name}.db"
     manifest = folder / f"{name}.json"
@@ -108,7 +108,7 @@ def verify_backup(manifest: Path) -> BackupInfo:
     if document.get("format_version") != 1:
         raise ValueError("Unsupported backup manifest format.")
     name = document["database_file"]
-    if Path(name).name != name or not name.endswith(".db"):
+    if Path(name).name != name or name != manifest.with_suffix(".db").name:
         raise ValueError("Backup manifest contains an invalid database filename.")
     database = manifest.parent / name
     if database.stat().st_size != document["size_bytes"]:
@@ -133,3 +133,46 @@ def latest_backup(folder: Path) -> Path | None:
         return None
     manifests = sorted(folder.glob("solar-forge-backup-*.json"), reverse=True)
     return manifests[0] if manifests else None
+
+
+def next_backup_due(folder: Path, schedule: str, now: datetime | None = None) -> datetime | None:
+    """Return the next due UTC time; an empty or unreadable history is due now."""
+    if schedule == "off":
+        return None
+    if schedule not in {"daily", "weekly"}:
+        raise ValueError("Unknown backup schedule.")
+    now = now or datetime.now(timezone.utc)
+    manifest = latest_backup(folder)
+    if manifest is None:
+        return now
+    try:
+        document = json.loads(manifest.read_text(encoding="utf-8"))
+        if not manifest.with_suffix(".db").is_file():
+            return now
+        created = datetime.fromisoformat(document["created_at"])
+        if created.tzinfo is None:
+            return now
+    except (OSError, ValueError, KeyError, TypeError):
+        return now
+    interval = timedelta(days=1 if schedule == "daily" else 7)
+    return created.astimezone(timezone.utc) + interval
+
+
+def prune_backups(folder: Path, keep: int) -> int:
+    """Remove only older, verified backup pairs after a new backup succeeded."""
+    if isinstance(keep, bool) or not isinstance(keep, int) or keep < 1:
+        raise ValueError("Keep at least one backup.")
+    if not folder.is_dir():
+        return 0
+    valid: list[BackupInfo] = []
+    for manifest in sorted(folder.glob("solar-forge-backup-*.json"), reverse=True):
+        try:
+            valid.append(verify_backup(manifest))
+        except (OSError, ValueError, KeyError, TypeError, sqlite3.DatabaseError):
+            continue
+    removed = 0
+    for info in valid[keep:]:
+        info.database.unlink()
+        info.manifest.unlink()
+        removed += 1
+    return removed

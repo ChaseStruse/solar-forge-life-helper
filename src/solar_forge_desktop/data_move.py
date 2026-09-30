@@ -4,6 +4,7 @@ import os
 import sqlite3
 import tempfile
 from contextlib import closing
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import quote
 
@@ -30,7 +31,7 @@ def validate_move_target(settings: AppSettings, destination: Path) -> Path:
 def queue_data_move(store: SettingsStore, settings: AppSettings, destination: Path) -> None:
     """Record a requested move; the launcher performs it on the next start."""
     destination = validate_move_target(settings, destination)
-    store.save(AppSettings(settings.data_directory, settings.backup_directory, destination))
+    store.save(replace(settings, pending_move_directory=destination))
 
 
 def perform_pending_move(store: SettingsStore, settings: AppSettings) -> AppSettings:
@@ -77,7 +78,7 @@ def perform_pending_move(store: SettingsStore, settings: AppSettings) -> AppSett
         temporary_path.unlink()
         reopened = Storage(destination_path)
         reopened.close()
-        updated = AppSettings(destination_dir, settings.backup_directory)
+        updated = replace(settings, data_directory=destination_dir, pending_move_directory=None)
         store.save(updated)
         return updated
     finally:

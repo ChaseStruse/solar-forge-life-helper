@@ -34,6 +34,11 @@ def test_settings_round_trip_and_location_precedence(tmp_path: Path) -> None:
     ) == tmp_path / "override"
     assert store.path.stat().st_mode & 0o077 == 0
 
+    scheduled = AppSettings(selected, tmp_path / "backups", backup_schedule="daily",
+                            backup_retention=3)
+    store.save(scheduled)
+    assert store.load() == scheduled
+
 
 def test_saved_location_must_remain_available(tmp_path: Path) -> None:
     selected = tmp_path / "detached drive"
