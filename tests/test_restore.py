@@ -91,3 +91,28 @@ def test_failed_reopen_rolls_back_from_safety_copy(tmp_path: Path, monkeypatch) 
     current = real_storage(database)
     assert current.profile_name(newest_id) == "Newest"
     current.close()
+
+
+def test_settings_write_failure_rolls_back_data(tmp_path: Path, monkeypatch) -> None:
+    data = tmp_path / "data"
+    database = data / DATABASE_NAME
+    storage = Storage(database)
+    storage.create_profile("Before backup")
+    backups = tmp_path / "backups"
+    selected = create_backup(database, backups)
+    newest_id = storage.create_profile("Newest")
+    storage.close()
+    store = SettingsStore(tmp_path / "config")
+    settings = AppSettings(data, backups)
+    store.save(settings)
+    queue_restore(store, settings, selected.manifest)
+    def fail_save(_settings: AppSettings) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(store, "save", fail_save)
+
+    with pytest.raises(OSError, match="disk full"):
+        perform_pending_restore(store, store.load(), data)
+    current = Storage(database)
+    assert current.profile_name(newest_id) == "Newest"
+    current.close()

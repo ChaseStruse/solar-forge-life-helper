@@ -131,7 +131,7 @@ Start with Phase 1 in three small changes:
 2. **Completed:** The first-run picker and Settings screen expose the data location and let people change the future backup folder. Selecting a backup folder is configuration only until automated backups ship. Local users can queue a move for the next launch; the app copies and verifies the database before switching its saved choice and keeps the old file.
 3. **Completed in part:** The Compose host-folder setup path generates an ignored override and copies an existing database from the previous mount. Broaden move failure recovery checks, including interrupted writes and external processes.
 
-Phase 2 now has manual verified backups, manifests, optional daily or weekly runs while the app is open, retention controls, a Settings action to verify the latest file, and restart-based restore with a separate pre-restore safety copy. Continue hardening interrupted-restore recovery and stale-backup warnings before treating Phase 2 as complete. Keep each slice independently reviewable and commit changes early and often, as required by `AGENTS.md`.
+Phase 2 now has manual verified backups, manifests, optional daily or weekly runs while the app is open, retention controls, a Settings action to verify the latest file, stale-backup messaging, and restart-based restore with a selectable pre-restore safety copy. The restore checks rollback after a failed reopen or settings write. The next implementation focus is Phase 3: household membership, shared tasks and events, and service-level authorization. Keep each slice independently reviewable and commit changes early and often, as required by `AGENTS.md`.
 
 ## Decisions to validate with users
 

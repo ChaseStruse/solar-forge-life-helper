@@ -1,5 +1,7 @@
 """Storage preferences must not change or overwrite the live database."""
 
+import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -136,3 +138,25 @@ def test_settings_can_queue_restore(qtbot, tmp_path: Path, monkeypatch) -> None:
     qtbot.mouseClick(dialog.restore_button, Qt.MouseButton.LeftButton)
     qtbot.waitUntil(lambda: store.load().pending_restore_manifest is not None, timeout=10000)
     assert store.load().pending_restore_manifest == selected.manifest
+
+
+def test_settings_lists_recovery_copy_and_warns_about_stale_backup(qtbot, tmp_path: Path) -> None:
+    data = tmp_path / "data"
+    storage = Storage(data / "solar-forge-desktop.db")
+    backup = tmp_path / "backup"
+    regular = create_backup(data / "solar-forge-desktop.db", backup)
+    recovery = create_backup(data / "solar-forge-desktop.db", backup, kind="pre-restore")
+    storage.close()
+    document = json.loads(regular.manifest.read_text())
+    document["created_at"] = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
+    regular.manifest.write_text(json.dumps(document))
+    store = SettingsStore(tmp_path / "config")
+    store.save(AppSettings(data, backup))
+
+    dialog = StorageSettingsDialog(store, data)
+    qtbot.addWidget(dialog)
+    assert "more than 7 days old" in dialog.backup_status.text()
+    assert any(
+        dialog.restore_input.itemData(index) == recovery.manifest
+        for index in range(dialog.restore_input.count())
+    )

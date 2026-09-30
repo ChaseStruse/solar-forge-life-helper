@@ -1,7 +1,9 @@
 """User-facing storage preferences for the current desktop session."""
 
+import json
 import os
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -216,10 +218,21 @@ class StorageSettingsDialog(QDialog):
 
     def _show_latest(self) -> None:
         manifest = latest_backup(Path(self.backup_input.text().strip()).expanduser())
-        self.backup_status.setText(
-            f"Latest backup: {manifest.name}"
-            if manifest else "No manual backups in this folder yet."
-        )
+        if manifest is None:
+            message = "No regular backups in this folder yet."
+        else:
+            message = f"Latest backup: {manifest.name}"
+            try:
+                created = datetime.fromisoformat(
+                    json.loads(manifest.read_text(encoding="utf-8"))["created_at"]
+                )
+                if created.tzinfo is None or not manifest.with_suffix(".db").is_file():
+                    message += " — verify this backup before relying on it."
+                elif datetime.now(timezone.utc) - created > timedelta(days=7):
+                    message += " — more than 7 days old."
+            except (OSError, ValueError, KeyError, TypeError):
+                message += " — verify this backup before relying on it."
+        self.backup_status.setText(message)
         if self.scheduler is not None and self.scheduler.last_result:
             self.backup_status.setText(self.scheduler.last_result)
 
@@ -295,8 +308,11 @@ class StorageSettingsDialog(QDialog):
         self.restore_input.clear()
         folder = Path(self.backup_input.text().strip()).expanduser()
         if folder.is_dir():
-            for manifest in sorted(folder.glob("solar-forge-backup-*.json"), reverse=True):
-                self.restore_input.addItem(manifest.name, manifest)
+            manifests = list(folder.glob("solar-forge-backup-*.json"))
+            manifests.extend(folder.glob("solar-forge-pre-restore-*.json"))
+            for manifest in sorted(manifests, key=lambda path: path.stat().st_mtime, reverse=True):
+                label = "Recovery copy" if "pre-restore" in manifest.name else "Backup"
+                self.restore_input.addItem(f"{label}: {manifest.name}", manifest)
         if self.restore_input.count() == 0:
             self.restore_input.addItem("No backups available", None)
         self.restore_button.setEnabled(
