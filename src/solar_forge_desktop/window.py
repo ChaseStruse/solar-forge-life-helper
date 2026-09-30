@@ -72,7 +72,7 @@ QFrame#card { background: #1a1533; border: 1px solid #302943; border-radius: 16p
 QFrame#taskRow { background: #201a38; border: 1px solid #302943; border-radius: 10px; }
 QLabel#brandIcon { background: #8b5cf6; color: white; border-radius: 12px;
                    font-size: 23px; font-weight: 700; }
-QLabel#brand { color: #d6b4ff; font-size: 22px; font-weight: 800; }
+QLabel#brand { color: #d6b4ff; font-size: 17px; font-weight: 800; }
 QLabel#heading { color: #f3f4f6; font-size: 32px; font-weight: 700; }
 QLabel#section { color: #f3f4f6; font-size: 18px; font-weight: 700; }
 QLabel#muted { color: #a1a1aa; }
@@ -246,8 +246,9 @@ class TaskWindow(QMainWindow):
         brand_icon.setFixedSize(40, 40)
         brand_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         brand_row.addWidget(brand_icon)
-        brand = QLabel("Solar Forge Life")
+        brand = QLabel("Solar Forge\nLife Helper")
         brand.setObjectName("brand")
+        brand.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         brand_row.addWidget(brand)
         brand_row.addStretch()
         nav.addLayout(brand_row)
