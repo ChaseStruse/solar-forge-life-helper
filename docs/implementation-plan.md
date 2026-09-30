@@ -15,6 +15,20 @@ This is a roadmap, not a claim that these capabilities exist today. Each phase s
 - Docker Compose currently runs the app with `network_mode: none`, so it cannot contact an Ollama or llama.cpp server on the host or LAN. That isolation should remain the default until an explicit local-model connection is configured.
 - The accounts are separate; there is no household membership, shared record policy, notification service, or AI integration.
 
+## Preparation found in the code review
+
+The current test baseline is 95 passing tests. The following work should happen at the indicated point rather than as one large refactor:
+
+| When | Preparation | Reason |
+| --- | --- | --- |
+| Before the storage picker | Move path resolution and old-database import out of `__main__.py` into one configuration/bootstrap service. Resolve the saved choice before constructing `Storage`. | `Storage` currently creates the parent directory and initializes a fresh database on open. A missing selected drive must show a recovery screen, not look like lost family data. |
+| Before a live database move | Add a single-instance or exclusive maintenance guard and an app-level operation that stops page workers, closes database connections, moves and verifies the file, then reopens it. | Pages currently own background workers while `DesktopSession` holds one `Storage` instance. A second app process or active worker could write during a move. |
+| Before household sharing or AI writes | Pass an authenticated actor/context to service operations and centralize authorization. Keep existing profile filters during the transition. | Services currently accept a caller-supplied `profile_id`. That works for the local UI but is not a sufficient authorization boundary for model-proposed actions or a later LAN API. |
+| Before reminders | Choose and document a time-zone policy, then migrate timed records as needed. | Calendar events and medicine times are stored as local, timezone-naive strings. Reminders must handle daylight-saving changes and a computer moving between zones. |
+| Before a privacy claim for AI | Define what goes into prompts, what local logs retain, and how endpoint restrictions are tested. | The model provider will become a new data boundary even if it runs on the same machine. |
+
+The Docker build context is now restricted to source and test inputs by `.dockerignore`, with database files and conventional `backups/` folders excluded. The storage picker should still recommend locations outside the source tree.
+
 ## Product rules for every phase
 
 1. **Local ownership:** SQLite remains the source of truth. Keep the app fully useful without a model or an internet connection. Never silently select a cloud provider or send telemetry, prompts, or records outside the approved local endpoint.
