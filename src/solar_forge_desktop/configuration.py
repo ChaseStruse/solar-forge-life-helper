@@ -22,6 +22,7 @@ class AppSettings:
     pending_move_directory: Path | None = None
     backup_schedule: str = "off"
     backup_retention: int = 7
+    pending_restore_manifest: Path | None = None
 
 
 def _backup_preferences(schedule: str, retention: int) -> None:
@@ -58,8 +59,11 @@ class SettingsStore:
                        if pending_value is not None else None)
             schedule = document.get("backup_schedule", "off")
             retention = document.get("backup_retention", 7)
+            restore_value = document.get("pending_restore_manifest")
+            restore = (_absolute_directory(restore_value, "Pending restore manifest")
+                       if restore_value is not None else None)
             _backup_preferences(schedule, retention)
-            return AppSettings(data, backup, pending, schedule, retention)
+            return AppSettings(data, backup, pending, schedule, retention, restore)
         except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
             raise ValueError(f"Could not read application settings: {self.path}") from exc
 
@@ -69,6 +73,10 @@ class SettingsStore:
                   if settings.backup_directory is not None else None)
         pending = (_absolute_directory(settings.pending_move_directory, "Pending data location")
                    if settings.pending_move_directory is not None else None)
+        restore = (
+            _absolute_directory(settings.pending_restore_manifest, "Pending restore manifest")
+            if settings.pending_restore_manifest is not None else None
+        )
         _backup_preferences(settings.backup_schedule, settings.backup_retention)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         fd, temporary_name = tempfile.mkstemp(prefix=".settings-", dir=self.path.parent)
@@ -80,7 +88,8 @@ class SettingsStore:
                            "backup_directory": str(backup) if backup else None,
                            "pending_move_directory": str(pending) if pending else None,
                            "backup_schedule": settings.backup_schedule,
-                           "backup_retention": settings.backup_retention}, stream)
+                           "backup_retention": settings.backup_retention,
+                           "pending_restore_manifest": str(restore) if restore else None}, stream)
                 stream.write("\n")
                 stream.flush()
                 os.fsync(stream.fileno())

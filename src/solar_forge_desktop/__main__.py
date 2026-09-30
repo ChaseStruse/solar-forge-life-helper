@@ -26,6 +26,7 @@ from solar_forge_desktop.paths import (
     default_backup_directory,
     default_data_directory,
 )
+from solar_forge_desktop.restore import RestoreRollbackFailed, perform_pending_restore
 from solar_forge_desktop.storage import Storage
 from solar_forge_desktop.tasks import TaskService
 from solar_forge_desktop.window import TaskWindow
@@ -117,6 +118,24 @@ def main() -> int:
                     return 1
                 settings = replace(settings, data_directory=replacement)
                 save_choice = True
+        if settings is not None and settings.pending_restore_manifest:
+            try:
+                safety = perform_pending_restore(store, settings, directory)
+                settings = store.load()
+                QMessageBox.information(
+                    None, "Backup restored",
+                    f"The selected backup was restored. Your previous database was saved at:\n"
+                    f"{safety.database}",
+                )
+            except RestoreRollbackFailed:
+                raise
+            except Exception as exc:
+                QMessageBox.warning(
+                    None, "Restore could not finish",
+                    f"The current database has been preserved.\n\n{exc}",
+                )
+                settings = replace(settings, pending_restore_manifest=None)
+                store.save(settings)
         data_path = directory / DATABASE_NAME
         import_previous_database(data_path)
         import_legacy_database(app, data_path)

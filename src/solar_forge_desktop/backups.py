@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote
 
 
@@ -32,7 +33,9 @@ def _checksum(path: Path) -> str:
     return digest.hexdigest()
 
 
-def create_backup(database: Path, folder: Path) -> BackupInfo:
+def create_backup(
+    database: Path, folder: Path, kind: Literal["regular", "pre-restore"] = "regular",
+) -> BackupInfo:
     """Snapshot a live SQLite file, verify it, then publish it with a manifest."""
     if not database.is_file():
         raise FileNotFoundError(f"The active database is unavailable: {database}")
@@ -43,7 +46,8 @@ def create_backup(database: Path, folder: Path) -> BackupInfo:
         raise ValueError("Choose a backup folder separate from the data folder.")
     folder.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    name = f"solar-forge-backup-{stamp}-{uuid.uuid4().hex[:8]}"
+    prefix = "solar-forge-backup" if kind == "regular" else "solar-forge-pre-restore"
+    name = f"{prefix}-{stamp}-{uuid.uuid4().hex[:8]}"
     published = folder / f"{name}.db"
     manifest = folder / f"{name}.json"
     fd, temporary_name = tempfile.mkstemp(prefix=f".{name}.", suffix=".tmp", dir=folder)
@@ -79,6 +83,7 @@ def create_backup(database: Path, folder: Path) -> BackupInfo:
             "size_bytes": info.size_bytes,
             "sha256": info.sha256,
             "app_version": version("solar-forge-life-desktop"),
+            "kind": kind,
         }
         fd, manifest_name = tempfile.mkstemp(prefix=f".{name}.", suffix=".json.tmp", dir=folder)
         manifest_temporary = Path(manifest_name)
