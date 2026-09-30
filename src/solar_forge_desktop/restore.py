@@ -31,7 +31,7 @@ def queue_restore(
     if manifest.parent != settings.backup_directory.resolve():
         raise ValueError("Choose a backup from your selected backup folder.")
     info = verified if verified and verified.manifest == manifest else verify_backup(manifest)
-    if not 1 <= info.schema_version <= 14:
+    if not 1 <= info.schema_version <= 15:
         raise ValueError("This backup uses an unsupported database version.")
     store.save(replace(settings, pending_restore_manifest=manifest))
     return info
@@ -71,7 +71,7 @@ def perform_pending_restore(
     if manifest.resolve().parent != settings.backup_directory.resolve():
         raise ValueError("The selected backup is outside the backup folder.")
     info = verify_backup(manifest)
-    if not 1 <= info.schema_version <= 14:
+    if not 1 <= info.schema_version <= 15:
         raise ValueError("This backup uses an unsupported database version.")
     current = data_directory / DATABASE_NAME
     if not current.is_file():

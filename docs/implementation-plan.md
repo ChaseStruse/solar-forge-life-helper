@@ -11,9 +11,9 @@ This is a roadmap, not a claim that these capabilities exist today. Each phase s
 ## Current starting point
 
 - The app has one SQLite database, local accounts, and profile-scoped records across twelve modules. New local installations have a first-run data and backup folder picker. Settings shows the current data folder, lets people change the saved backup folder, and can queue a verified data move for the next launch. Optional daily or weekly backups run while the app is open.
-- `Storage` owns schema version 14 and upgrade snapshots. The launcher copies an older Luna database on first use. These snapshots and imports are not a user backup system.
+- `Storage` owns schema version 15 and upgrade snapshots. The launcher copies an older Luna database on first use. These snapshots and imports are not a user backup system.
 - Docker Compose currently runs the app with `network_mode: none`, so it cannot contact an Ollama or llama.cpp server on the host or LAN. That isolation should remain the default until an explicit local-model connection is configured.
-- The accounts are separate; there is no household membership, shared record policy, notification service, or AI integration.
+- Local accounts now have one household with owner/member roles, but existing tasks and events stay private and the UI has no sharing controls yet. There is no notification service or AI integration.
 
 ## Preparation found in the code review
 
@@ -131,7 +131,7 @@ Start with Phase 1 in three small changes:
 2. **Completed:** The first-run picker and Settings screen expose the data location and let people change the future backup folder. Selecting a backup folder is configuration only until automated backups ship. Local users can queue a move for the next launch; the app copies and verifies the database before switching its saved choice and keeps the old file.
 3. **Completed in part:** The Compose host-folder setup path generates an ignored override and copies an existing database from the previous mount. Broaden move failure recovery checks, including interrupted writes and external processes.
 
-Phase 2 now has manual verified backups, manifests, optional daily or weekly runs while the app is open, retention controls, a Settings action to verify the latest file, stale-backup messaging, and restart-based restore with a selectable pre-restore safety copy. The restore checks rollback after a failed reopen or settings write. The next implementation focus is Phase 3: household membership, shared tasks and events, and service-level authorization. Keep each slice independently reviewable and commit changes early and often, as required by `AGENTS.md`.
+Phase 2 now has manual verified backups, manifests, optional daily or weekly runs while the app is open, retention controls, a Settings action to verify the latest file, stale-backup messaging, and restart-based restore with a selectable pre-restore safety copy. The restore checks rollback after a failed reopen or settings write. Phase 3 has begun with a household/member schema and private-by-default task and event fields. The next slice centralizes authorization and adds explicit sharing controls. Keep each slice independently reviewable and commit changes early and often, as required by `AGENTS.md`.
 
 ## Decisions to validate with users
 

@@ -8,7 +8,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from solar_forge_desktop.storage import Profile, Storage
+from solar_forge_desktop.storage import Profile, Storage, ensure_household_membership
 
 USERNAME = re.compile(r"^[a-z0-9_.-]{3,80}$")
 INVALID_LOGIN = "Invalid username or password."
@@ -69,6 +69,7 @@ class AuthService:
                     profile = Profile(name=clean, username=clean, password_hash=password_hash)
                     session.add(profile)
                 session.flush()
+                ensure_household_membership(session, profile.id)
                 return profile.id
         except IntegrityError as exc:
             raise ValueError("That username is already taken.") from exc

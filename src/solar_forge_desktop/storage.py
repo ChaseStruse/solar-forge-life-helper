@@ -83,6 +83,27 @@ class Profile(Base):
     )
 
 
+class Household(Base):
+    __tablename__ = "households"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
+class HouseholdMember(Base):
+    __tablename__ = "household_members"
+    __table_args__ = (UniqueConstraint("household_id", "profile_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    household_id: Mapped[int] = mapped_column(
+        ForeignKey("households.id", ondelete="CASCADE"), nullable=False
+    )
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+
+
 class ProfileSettings(Base):
     __tablename__ = "profile_settings"
 
@@ -121,6 +142,7 @@ class Task(Base):
     completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
     completed_at: Mapped[str | None] = mapped_column(String(40))
+    visibility: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     profile: Mapped[Profile] = relationship(back_populates="tasks")
 
 
@@ -382,6 +404,7 @@ class CalendarEvent(Base):
     recurrence: Mapped[str] = mapped_column(String(10), nullable=False, default="none")
     recurrence_until: Mapped[str | None] = mapped_column(String(10))
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
+    visibility: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     profile: Mapped[Profile] = relationship(back_populates="calendar_events")
 
 
@@ -416,6 +439,26 @@ class MedicineItem:
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def ensure_household_membership(session, profile_id: int) -> None:
+    """Place a local profile in the one household without exposing private records."""
+    if session.scalar(select(HouseholdMember.id).where(
+        HouseholdMember.profile_id == profile_id
+    )) is not None:
+        return
+    household = session.scalar(select(Household).order_by(Household.id).limit(1))
+    if household is None:
+        household = Household(name="My household")
+        session.add(household)
+        session.flush()
+    has_members = session.scalar(select(HouseholdMember.id).where(
+        HouseholdMember.household_id == household.id
+    ).limit(1)) is not None
+    session.add(HouseholdMember(
+        household_id=household.id, profile_id=profile_id,
+        role="member" if has_members else "owner",
+    ))
 
 
 class Storage:
@@ -458,8 +501,8 @@ class Storage:
                         "Choose an empty data directory."
                     )
                 Base.metadata.create_all(connection)
-                connection.exec_driver_sql("PRAGMA user_version=14")
-            elif version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14):
+                connection.exec_driver_sql("PRAGMA user_version=15")
+            elif version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15):
                 raise RuntimeError(f"Unsupported desktop database version: {version}")
             else:
                 names = set(
@@ -558,13 +601,29 @@ class Storage:
                 raise RuntimeError("Desktop database is missing calendar tables.")
         if version == 13:
             self._upgrade_v13()
+            version = 14
         with self.engine.connect() as connection:
             tables = set(connection.execute(text(tables_sql)).scalars())
             if "profile_settings" not in tables:
                 raise RuntimeError("Desktop database is missing profile settings.")
+        if version == 14:
+            self._upgrade_v14()
+        with self.engine.connect() as connection:
+            tables = set(connection.execute(text(tables_sql)).scalars())
+            if not {"households", "household_members"}.issubset(tables):
+                raise RuntimeError("Desktop database is missing household tables.")
+            for table in ("tasks", "calendar_events"):
+                columns = {
+                    row[1] for row in connection.exec_driver_sql(f"PRAGMA table_info({table})")
+                }
+                if "visibility" not in columns:
+                    raise RuntimeError(f"Desktop database is missing {table} visibility.")
         with self.sessions.begin() as session:
             if session.scalar(select(Profile.id).limit(1)) is None:
                 session.add(Profile(name="Home"))
+                session.flush()
+            for profile_id in session.scalars(select(Profile.id).order_by(Profile.id)):
+                ensure_household_membership(session, profile_id)
 
     def _upgrade_v1(self) -> None:
         """Keep a complete SQLite snapshot before changing an existing profile database."""
@@ -693,6 +752,25 @@ class Storage:
             ProfileSettings.__table__.create(connection)
             connection.exec_driver_sql("PRAGMA user_version=14")
 
+    def _upgrade_v14(self) -> None:
+        """Add one household while retaining every task and event as private."""
+        self._snapshot_before_upgrade("pre-household-v14")
+        with self.engine.begin() as connection:
+            if connection.exec_driver_sql("PRAGMA user_version").scalar_one() != 14:
+                return
+            Household.__table__.create(connection, checkfirst=True)
+            HouseholdMember.__table__.create(connection, checkfirst=True)
+            for table in ("tasks", "calendar_events"):
+                columns = {
+                    row[1] for row in connection.exec_driver_sql(f"PRAGMA table_info({table})")
+                }
+                if "visibility" not in columns:
+                    connection.exec_driver_sql(
+                        f"ALTER TABLE {table} ADD COLUMN visibility VARCHAR(20) "
+                        "NOT NULL DEFAULT 'private'"
+                    )
+            connection.exec_driver_sql("PRAGMA user_version=15")
+
     def _snapshot_before_upgrade(self, label: str) -> None:
         snapshot_path = self.path.with_name(self.path.name + "." + label)
         if not snapshot_path.exists():
@@ -730,6 +808,7 @@ class Storage:
             profile = Profile(name=clean_name)
             session.add(profile)
             session.flush()
+            ensure_household_membership(session, profile.id)
             return profile.id
 
     def close(self) -> None:
@@ -760,7 +839,7 @@ def seed_database_from_legacy(source_path: Path, destination_path: Path) -> bool
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
-            if (version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
+            if (version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
                     or not {"profiles", "tasks"}.issubset(tables)):
                 raise RuntimeError("The previous desktop database has an unsupported schema.")
             source.backup(snapshot)

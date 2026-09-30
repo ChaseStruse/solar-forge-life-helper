@@ -94,7 +94,7 @@ def test_v5_upgrade_snapshot_and_damaged_schema(tmp_path: Path) -> None:
     with closing(sqlite3.connect(path.with_name("old.db.pre-habits-v5"))) as snapshot:
         assert snapshot.execute("PRAGMA user_version").fetchone()[0] == 5
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 14
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 15
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
         db.execute("DROP TABLE habit_checks")
         db.commit()
