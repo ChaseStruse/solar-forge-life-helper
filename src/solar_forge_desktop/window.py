@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from solar_forge_desktop.backup_scheduler import BackupScheduler
 from solar_forge_desktop.budget import BudgetService
 from solar_forge_desktop.budget_page import STYLE as BUDGET_STYLE
 from solar_forge_desktop.budget_page import BudgetPage
@@ -208,6 +209,7 @@ class TaskWindow(QMainWindow):
         self, service: TaskService, profile_id: int, on_close: Callable[[], None],
         profile_name: str = "Home", on_sign_out: Callable[[], None] | None = None,
         settings_store: SettingsStore | None = None, data_directory: Path | None = None,
+        backup_scheduler: BackupScheduler | None = None,
     ):
         super().__init__()
         self.service = service
@@ -217,6 +219,7 @@ class TaskWindow(QMainWindow):
         self.on_sign_out = on_sign_out
         self.settings_store = settings_store
         self.data_directory = data_directory
+        self.backup_scheduler = backup_scheduler
         self.setWindowTitle("Solar Forge Life Helper — Dashboard")
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "solar-forge.svg")))
         self.resize(1280, 800)
@@ -713,7 +716,10 @@ class TaskWindow(QMainWindow):
 
     def show_storage_settings(self) -> None:
         if self.settings_store is not None and self.data_directory is not None:
-            StorageSettingsDialog(self.settings_store, self.data_directory, self).exec()
+            StorageSettingsDialog(
+                self.settings_store, self.data_directory, self,
+                scheduler=self.backup_scheduler,
+            ).exec()
 
     def _build_tasks(self) -> QWidget:
 

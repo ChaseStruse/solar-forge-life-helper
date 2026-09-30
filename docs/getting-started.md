@@ -27,7 +27,7 @@ uv run --frozen solar-forge-desktop
 
 The local launcher stores data in the operating system's per-user application data directory. To choose a different location, set `SOLAR_FORGE_DESKTOP_DATA_DIR` to an **absolute** path before launching. See [Data and migration](data-and-migration.md) for the database name and the old-app import behavior.
 
-On a new local installation, the app first asks you to choose a data folder and a separate backup folder. The suggested folders are ready to use. Open **Settings** to make a manual backup or verify the latest backup; automatic backups are still being built. Existing installations continue using their current database. If a saved data folder later goes missing, the app asks you to reconnect it or locate the existing database instead of starting with an empty one.
+On a new local installation, the app first asks you to choose a data folder and a separate backup folder. The suggested folders are ready to use. Open **Settings** to make a manual backup, verify the latest backup, or enable daily or weekly backups while the app is open. Existing installations continue using their current database. If a saved data folder later goes missing, the app asks you to reconnect it or locate the existing database instead of starting with an empty one.
 
 ## First account
 

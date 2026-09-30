@@ -5,6 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QFileDialog,
     QHBoxLayout,
@@ -12,10 +13,19 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QVBoxLayout,
 )
 
-from solar_forge_desktop.backups import BackupInfo, create_backup, latest_backup, verify_backup
+from solar_forge_desktop.backup_scheduler import BackupScheduler
+from solar_forge_desktop.backups import (
+    BackupInfo,
+    create_backup,
+    latest_backup,
+    next_backup_due,
+    prune_backups,
+    verify_backup,
+)
 from solar_forge_desktop.configuration import DATABASE_NAME, AppSettings, SettingsStore
 from solar_forge_desktop.data_move import validate_move_target
 from solar_forge_desktop.location_dialogs import STYLE
@@ -25,7 +35,7 @@ from solar_forge_desktop.workers import BackgroundWorker
 
 def save_storage_locations(
     store: SettingsStore, data_directory: Path, chosen_data: Path, backup: Path,
-    can_change_data: bool,
+    can_change_data: bool, schedule: str | None = None, retention: int | None = None,
 ) -> bool:
     """Save both locations; queue a verified move when the data path changes."""
     current = store.load()
@@ -52,8 +62,12 @@ def save_storage_locations(
         raise ValueError(f"This is not a folder: {backup}")
     backup.mkdir(parents=True, exist_ok=True)
     base = current or AppSettings(selected_data)
-    store.save(replace(base, data_directory=selected_data, backup_directory=backup,
-                       pending_move_directory=pending))
+    store.save(replace(
+        base, data_directory=selected_data, backup_directory=backup,
+        pending_move_directory=pending,
+        backup_schedule=schedule if schedule is not None else base.backup_schedule,
+        backup_retention=retention if retention is not None else base.backup_retention,
+    ))
     return changing_data
 
 
@@ -63,10 +77,14 @@ def save_backup_directory(store: SettingsStore, data_directory: Path, backup: Pa
 
 
 class StorageSettingsDialog(QDialog):
-    def __init__(self, store: SettingsStore, data_directory: Path, parent=None):
+    def __init__(
+        self, store: SettingsStore, data_directory: Path, parent=None,
+        scheduler: BackupScheduler | None = None,
+    ):
         super().__init__(parent)
         self.store = store
         self.data_directory = data_directory
+        self.scheduler = scheduler
         self.can_change_data = not bool(os.environ.get("SOLAR_FORGE_DESKTOP_DATA_DIR"))
         self._worker = BackgroundWorker(self, "solar-forge-backup")
         self._worker.busy_changed.connect(self._set_busy)
@@ -74,7 +92,12 @@ class StorageSettingsDialog(QDialog):
         self.finished.connect(lambda _result: self._worker.shutdown())
         self.setWindowTitle("Storage settings")
         self.setMinimumWidth(560)
-        self.setStyleSheet(STYLE)
+        self.setStyleSheet(STYLE + """
+            QComboBox, QSpinBox { background: #211b39; color: #f3f4f6;
+                border: 1px solid #39314e; border-radius: 8px; padding: 9px; }
+            QComboBox QAbstractItemView { background: #211b39; color: #f3f4f6;
+                selection-background-color: #8b5cf6; }
+        """)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 28, 28, 28)
         layout.setSpacing(12)
@@ -125,11 +148,31 @@ class StorageSettingsDialog(QDialog):
         layout.addLayout(row)
         note = QLabel(
             "Backups are local and unencrypted. A cloud-synced folder may upload them. "
-            "Automatic backups are not available yet."
+            "Scheduled backups run while this app is open."
         )
         note.setObjectName("hint")
         note.setWordWrap(True)
         layout.addWidget(note)
+        schedule_row = QHBoxLayout()
+        schedule_row.addWidget(QLabel("Automatic backups"))
+        self.schedule_input = QComboBox()
+        for label, value in (("Off", "off"), ("Daily", "daily"), ("Weekly", "weekly")):
+            self.schedule_input.addItem(label, value)
+        self.schedule_input.setCurrentIndex(
+            self.schedule_input.findData(saved.backup_schedule if saved else "off")
+        )
+        schedule_row.addWidget(self.schedule_input)
+        schedule_row.addWidget(QLabel("Keep"))
+        self.retention_input = QSpinBox()
+        self.retention_input.setRange(1, 30)
+        self.retention_input.setValue(saved.backup_retention if saved else 7)
+        self.retention_input.setSuffix(" backups")
+        schedule_row.addWidget(self.retention_input)
+        layout.addLayout(schedule_row)
+        self.next_backup_label = QLabel()
+        self.next_backup_label.setObjectName("hint")
+        layout.addWidget(self.next_backup_label)
+        self.schedule_input.currentIndexChanged.connect(self._show_next_backup)
         backup_actions = QHBoxLayout()
         self.backup_button = QPushButton("Back up now")
         self.backup_button.clicked.connect(self._start_backup)
@@ -144,6 +187,9 @@ class StorageSettingsDialog(QDialog):
         self.backup_status.setWordWrap(True)
         layout.addWidget(self.backup_status)
         self._show_latest()
+        self._show_next_backup()
+        if scheduler is not None:
+            scheduler.status_changed.connect(self.backup_status.setText)
         actions = QHBoxLayout()
         actions.addStretch()
         self.cancel_button = QPushButton("Cancel")
@@ -161,6 +207,20 @@ class StorageSettingsDialog(QDialog):
             f"Latest backup: {manifest.name}"
             if manifest else "No manual backups in this folder yet."
         )
+        if self.scheduler is not None and self.scheduler.last_result:
+            self.backup_status.setText(self.scheduler.last_result)
+
+    def _show_next_backup(self) -> None:
+        due = next_backup_due(
+            Path(self.backup_input.text().strip()).expanduser(),
+            self.schedule_input.currentData(),
+        )
+        if due is None:
+            self.next_backup_label.setText("Automatic backups are off.")
+        else:
+            self.next_backup_label.setText(
+                f"Next backup while the app is open: {due.astimezone():%b %d, %Y %I:%M %p}"
+            )
 
     def _set_busy(self, busy: bool) -> None:
         for button in (
@@ -171,8 +231,13 @@ class StorageSettingsDialog(QDialog):
     def _backup_failed(self, error: Exception) -> None:
         self.backup_status.setText(f"Backup check failed: {error}")
 
-    def _backup_done(self, info: BackupInfo) -> None:
-        self.backup_status.setText(f"Backup saved and verified: {info.database}")
+    def _backup_done(self, result: tuple[BackupInfo, str | None]) -> None:
+        info, cleanup_error = result
+        message = f"Backup saved and verified: {info.database}"
+        if cleanup_error:
+            message += f". Older backups could not be removed: {cleanup_error}"
+        self.backup_status.setText(message)
+        self._show_next_backup()
 
     def _start_backup(self) -> None:
         folder = Path(self.backup_input.text().strip())
@@ -182,9 +247,18 @@ class StorageSettingsDialog(QDialog):
             QMessageBox.warning(self, "Could not choose backup folder", str(exc))
             return
         self.backup_status.setText("Creating and verifying backup…")
+        keep = self.retention_input.value()
+
+        def action() -> tuple[BackupInfo, str | None]:
+            info = create_backup(self.data_directory / DATABASE_NAME, folder)
+            try:
+                prune_backups(info.database.parent, keep)
+            except Exception as exc:
+                return info, str(exc)
+            return info, None
+
         self._worker.submit(
-            lambda: create_backup(self.data_directory / DATABASE_NAME, folder),
-            self._backup_done,
+            action, self._backup_done,
         )
 
     def _verify_latest(self) -> None:
@@ -218,11 +292,14 @@ class StorageSettingsDialog(QDialog):
             changing_data = save_storage_locations(
                 self.store, self.data_directory, Path(self.data_input.text().strip()),
                 Path(self.backup_input.text().strip()), self.can_change_data,
+                self.schedule_input.currentData(), self.retention_input.value(),
             )
         except (OSError, ValueError) as exc:
             QMessageBox.warning(self, "Could not save storage folders", str(exc))
             return
         super().accept()
+        if self.scheduler is not None:
+            self.scheduler.check()
         if changing_data:
             QMessageBox.information(
                 self.parentWidget(), "Data move planned",

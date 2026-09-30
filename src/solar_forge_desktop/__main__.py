@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from solar_forge_desktop.auth import AuthService
 from solar_forge_desktop.auth_window import AuthWindow
+from solar_forge_desktop.backup_scheduler import BackupScheduler
 from solar_forge_desktop.bootstrap import import_legacy_database, import_previous_database
 from solar_forge_desktop.configuration import (
     DATABASE_NAME,
@@ -35,11 +36,12 @@ class DesktopSession:
 
     def __init__(
         self, storage: Storage, store: SettingsStore | None = None,
-        data_directory: Path | None = None,
+        data_directory: Path | None = None, backup_scheduler: BackupScheduler | None = None,
     ):
         self.storage = storage
         self.store = store
         self.data_directory = data_directory
+        self.backup_scheduler = backup_scheduler
         self.auth = AuthService(storage)
         self.auth_window: AuthWindow | None = None
         self.task_window: TaskWindow | None = None
@@ -60,6 +62,7 @@ class DesktopSession:
             TaskService(self.storage), profile_id, lambda: None,
             profile_name=self.storage.profile_name(profile_id), on_sign_out=self.show_auth,
             settings_store=self.store, data_directory=self.data_directory,
+            backup_scheduler=self.backup_scheduler,
         )
         self.task_window.show()
         if previous is not None:
@@ -123,8 +126,11 @@ def main() -> int:
     except Exception as exc:
         QMessageBox.critical(None, "Solar Forge Life Helper could not start", str(exc))
         return 1
+    scheduler = BackupScheduler(store, directory, app)
+    app.aboutToQuit.connect(scheduler.shutdown)
     app.aboutToQuit.connect(storage.close)
-    session = DesktopSession(storage, store, directory)
+    scheduler.start()
+    session = DesktopSession(storage, store, directory, scheduler)
     app.session = session
     result = app.exec()
     instance_lock.unlock()

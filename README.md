@@ -81,7 +81,7 @@ The command writes a local, ignored `compose.override.yaml`. On first start with
 chosen data folder, the app copies the database from the previous Compose data location
 using SQLite's backup API and leaves the original in place. Run the command again to
 choose another host folder. Use **Back up now** in Settings to write to that backup folder;
-automatic backups are not available yet. Keep the same `SOLAR_FORGE_DESKTOP_VOLUME_NAME` if you
+scheduled backups can run while the app is open. Keep the same `SOLAR_FORGE_DESKTOP_VOLUME_NAME` if you
 previously customized it. The folders must be writable by the Compose app user.
 
 The volume is initialized with the app user's permissions. On Linux installations where
@@ -111,7 +111,8 @@ uv run --frozen solar-forge-desktop
 The app writes to the operating system's per-user application data directory so tasks
 persist between launches. A new local installation asks you to choose the data folder
 and a separate backup folder. Open **Settings** in the sidebar to edit those folders,
-select **Back up now**, and verify the latest backup. Automatic backups and restore are
+select **Back up now**, and verify the latest backup. You can also enable daily or weekly
+backups and choose how many to keep. Scheduled backups run while the app is open. Restore is
 still planned. On a local
 installation, changing the data folder copies and verifies the database on the next
 launch and retains the original. On first native launch,

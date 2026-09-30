@@ -101,3 +101,15 @@ def test_settings_can_create_and_verify_backup(qtbot, tmp_path: Path) -> None:
     )
     dialog.close()
     storage.close()
+
+
+def test_saving_schedule_keeps_storage_paths(tmp_path: Path) -> None:
+    data = tmp_path / "data"
+    backup = tmp_path / "backup"
+    store = SettingsStore(tmp_path / "config")
+    store.save(AppSettings(data, backup))
+
+    assert not save_storage_locations(store, data, data, backup, True, "weekly", 4)
+    assert store.load() == AppSettings(
+        data, backup, backup_schedule="weekly", backup_retention=4
+    )
