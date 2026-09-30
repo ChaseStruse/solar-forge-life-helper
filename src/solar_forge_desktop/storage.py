@@ -408,6 +408,33 @@ class CalendarEvent(Base):
     profile: Mapped[Profile] = relationship(back_populates="calendar_events")
 
 
+class CalendarReminder(Base):
+    __tablename__ = "calendar_reminders"
+    __table_args__ = (UniqueConstraint("profile_id", "event_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    event_id: Mapped[int] = mapped_column(
+        ForeignKey("calendar_events.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    lead_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    timezone_id: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
+class CalendarReminderDelivery(Base):
+    __tablename__ = "calendar_reminder_deliveries"
+    __table_args__ = (UniqueConstraint("reminder_id", "occurrence_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reminder_id: Mapped[int] = mapped_column(
+        ForeignKey("calendar_reminders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    occurrence_at: Mapped[str] = mapped_column(String(19), nullable=False)
+    delivered_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
 @dataclass(frozen=True)
 class TaskItem:
     id: int
@@ -503,8 +530,8 @@ class Storage:
                         "Choose an empty data directory."
                     )
                 Base.metadata.create_all(connection)
-                connection.exec_driver_sql("PRAGMA user_version=15")
-            elif version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15):
+                connection.exec_driver_sql("PRAGMA user_version=16")
+            elif version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16):
                 raise RuntimeError(f"Unsupported desktop database version: {version}")
             else:
                 names = set(
@@ -610,6 +637,7 @@ class Storage:
                 raise RuntimeError("Desktop database is missing profile settings.")
         if version == 14:
             self._upgrade_v14()
+            version = 15
         with self.engine.connect() as connection:
             tables = set(connection.execute(text(tables_sql)).scalars())
             if not {"households", "household_members"}.issubset(tables):
@@ -620,6 +648,12 @@ class Storage:
                 }
                 if "visibility" not in columns:
                     raise RuntimeError(f"Desktop database is missing {table} visibility.")
+        if version == 15:
+            self._upgrade_v15()
+        with self.engine.connect() as connection:
+            tables = set(connection.execute(text(tables_sql)).scalars())
+            if not {"calendar_reminders", "calendar_reminder_deliveries"}.issubset(tables):
+                raise RuntimeError("Desktop database is missing reminder tables.")
         with self.sessions.begin() as session:
             if session.scalar(select(Profile.id).limit(1)) is None:
                 session.add(Profile(name="Home"))
@@ -773,6 +807,16 @@ class Storage:
                     )
             connection.exec_driver_sql("PRAGMA user_version=15")
 
+    def _upgrade_v15(self) -> None:
+        """Add opt-in calendar reminder rules and durable delivery records."""
+        self._snapshot_before_upgrade("pre-reminders-v15")
+        with self.engine.begin() as connection:
+            if connection.exec_driver_sql("PRAGMA user_version").scalar_one() != 15:
+                return
+            CalendarReminder.__table__.create(connection, checkfirst=True)
+            CalendarReminderDelivery.__table__.create(connection, checkfirst=True)
+            connection.exec_driver_sql("PRAGMA user_version=16")
+
     def _snapshot_before_upgrade(self, label: str) -> None:
         snapshot_path = self.path.with_name(self.path.name + "." + label)
         if not snapshot_path.exists():
@@ -841,7 +885,7 @@ def seed_database_from_legacy(source_path: Path, destination_path: Path) -> bool
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
-            if (version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
+            if (version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
                     or not {"profiles", "tasks"}.issubset(tables)):
                 raise RuntimeError("The previous desktop database has an unsupported schema.")
             source.backup(snapshot)

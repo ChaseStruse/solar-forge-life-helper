@@ -43,3 +43,5 @@ Use **Back up now** in Settings to make a consistent copy without stopping the a
 The app makes a snapshot before a supported schema upgrade. These upgrade snapshots are not a substitute for regular backups. `docker compose down` preserves the named volume; `docker compose down -v` removes it.
 
 Schema version 15 adds a local household and owner/member memberships. Existing accounts join that household, but every existing task and calendar event is marked **private**. The migration saves a `pre-household-v14` snapshot before changing an older database. After migration, the owner can explicitly share a task or calendar event with the household. A member of a different household cannot see it. Shared task completion and shared calendar edits are available to members; deletion and visibility changes stay with the owner.
+
+Schema version 16 adds opt-in calendar reminder rules and delivery records. The upgrade saves a `pre-reminders-v15` snapshot. It does not create reminders for existing events or change their times. Reminder notifications are not available in the UI yet.

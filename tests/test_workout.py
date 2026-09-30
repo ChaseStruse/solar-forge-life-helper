@@ -108,7 +108,7 @@ def test_v8_upgrade_snapshot_and_missing_table(tmp_path: Path) -> None:
             row[0] for row in snapshot.execute("SELECT name FROM sqlite_master")
         }
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 15
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 16
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
         db.execute("DROP TABLE workout_logs")
         db.commit()

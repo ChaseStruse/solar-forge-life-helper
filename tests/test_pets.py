@@ -128,7 +128,7 @@ def test_v9_upgrade_snapshot_and_missing_table(tmp_path: Path) -> None:
         assert snapshot.execute("PRAGMA user_version").fetchone()[0] == 9
         assert "pets" not in {row[0] for row in snapshot.execute("SELECT name FROM sqlite_master")}
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 15
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 16
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
         db.execute("DROP TABLE pet_care_records")
         db.commit()
