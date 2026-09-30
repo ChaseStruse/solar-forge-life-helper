@@ -770,7 +770,9 @@ class TaskWindow(QMainWindow):
         entry_row.addWidget(self.add_button)
         entry_layout.addLayout(entry_row)
         visibility_row = QHBoxLayout()
-        visibility_row.addWidget(QLabel("Visible to"))
+        visibility_label = QLabel("Visible to")
+        visibility_label.setObjectName("muted")
+        visibility_row.addWidget(visibility_label)
         self.task_visibility = QComboBox()
         self.task_visibility.setObjectName("taskVisibility")
         self.task_visibility.setAccessibleName("Task visibility")
@@ -951,7 +953,9 @@ class TaskWindow(QMainWindow):
                 )
                 row_layout.addWidget(delete)
             else:
-                row_layout.addWidget(QLabel("Household"))
+                shared_label = QLabel("Household")
+                shared_label.setObjectName("muted")
+                row_layout.addWidget(shared_label)
             layout.addWidget(row)
 
     def closeEvent(self, event) -> None:

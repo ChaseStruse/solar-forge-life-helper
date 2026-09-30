@@ -1,6 +1,6 @@
 # Data and migration
 
-Solar Forge Life Helper stores account credentials, profile settings, and app records in a local SQLite database named `solar-forge-desktop.db`. Each account's records are kept separate within that database. Passwords are stored as salted scrypt hashes. The database, including journal entries and other personal records, is **not encrypted**.
+Solar Forge Life Helper stores account credentials, profile settings, and app records in a local SQLite database named `solar-forge-desktop.db`. Each account's records are kept separate within that database unless a task or calendar event is explicitly shared with the local household. Passwords are stored as salted scrypt hashes. The database, including journal entries and other personal records, is **not encrypted**.
 
 ## Where the database lives
 
@@ -42,4 +42,4 @@ Use **Back up now** in Settings to make a consistent copy without stopping the a
 
 The app makes a snapshot before a supported schema upgrade. These upgrade snapshots are not a substitute for regular backups. `docker compose down` preserves the named volume; `docker compose down -v` removes it.
 
-Schema version 15 adds a local household and owner/member memberships. Existing accounts join that household, but every existing task and calendar event is marked **private**. The migration saves a `pre-household-v14` snapshot before changing an older database. Sharing controls and cross-account access are not enabled yet.
+Schema version 15 adds a local household and owner/member memberships. Existing accounts join that household, but every existing task and calendar event is marked **private**. The migration saves a `pre-household-v14` snapshot before changing an older database. After migration, the owner can explicitly share a task or calendar event with the household. A member of a different household cannot see it. Shared task completion and shared calendar edits are available to members; deletion and visibility changes stay with the owner.
