@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-
 DATABASE_NAME = "solar-forge-desktop.db"
 SETTINGS_NAME = "settings.json"
 

@@ -3,7 +3,9 @@
 from pathlib import Path
 
 import pytest
+from PySide6.QtWidgets import QApplication
 
+from solar_forge_desktop.bootstrap import import_legacy_database
 from solar_forge_desktop.configuration import (
     DATABASE_NAME,
     AppSettings,
@@ -11,6 +13,7 @@ from solar_forge_desktop.configuration import (
     SettingsStore,
     resolve_data_directory,
 )
+from solar_forge_desktop.storage import Storage
 
 
 def test_settings_round_trip_and_location_precedence(tmp_path: Path) -> None:
@@ -51,3 +54,22 @@ def test_invalid_settings_do_not_fall_back_to_new_database(tmp_path: Path) -> No
     with pytest.raises(ValueError, match="absolute path"):
         store.save(AppSettings(Path("relative/data")))
     assert store.path.read_text(encoding="utf-8") == "{broken"
+
+
+def test_legacy_import_uses_explicit_folder_and_restores_app_identity(
+    qtbot, tmp_path: Path,
+) -> None:
+    app = QApplication.instance()
+    app.setOrganizationName("Solar Forge Life Helper")
+    app.setApplicationName("Solar Forge Life Helper")
+    old_directory = tmp_path / "old"
+    old_database = old_directory / "luna-desktop.db"
+    source = Storage(old_database)
+    source.close()
+    destination = tmp_path / "new" / DATABASE_NAME
+    import_legacy_database(
+        app, destination, {"SOLAR_FORGE_DESKTOP_LEGACY_DATA_DIR": str(old_directory)}
+    )
+    assert destination.is_file()
+    assert old_database.is_file()
+    assert app.organizationName() == "Solar Forge Life Helper"

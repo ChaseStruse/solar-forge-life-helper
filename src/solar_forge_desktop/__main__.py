@@ -2,15 +2,26 @@
 
 import os
 import sys
-from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from solar_forge_desktop.auth import AuthService
 from solar_forge_desktop.auth_window import AuthWindow
-from solar_forge_desktop.paths import data_directory
-from solar_forge_desktop.storage import Storage, seed_database_from_legacy
+from solar_forge_desktop.bootstrap import import_legacy_database
+from solar_forge_desktop.configuration import (
+    DATABASE_NAME,
+    AppSettings,
+    DataLocationUnavailable,
+    SettingsStore,
+    resolve_data_directory,
+)
+from solar_forge_desktop.location_dialogs import StorageSetupDialog, locate_existing_database
+from solar_forge_desktop.paths import (
+    configuration_directory,
+    default_backup_directory,
+    default_data_directory,
+)
+from solar_forge_desktop.storage import Storage
 from solar_forge_desktop.tasks import TaskService
 from solar_forge_desktop.window import TaskWindow
 
@@ -50,25 +61,35 @@ def main() -> int:
     app.setOrganizationName("Solar Forge Life Helper")
     app.setApplicationName("Solar Forge Life Helper")
     try:
-        data_path = data_directory() / "solar-forge-desktop.db"
-        seed_database_from_legacy(data_path.with_name("luna-desktop.db"), data_path)
-        legacy_override = os.environ.get("SOLAR_FORGE_DESKTOP_LEGACY_DATA_DIR")
-        if legacy_override:
-            legacy_path = Path(legacy_override) / "luna-desktop.db"
-        elif os.environ.get("SOLAR_FORGE_DESKTOP_DATA_DIR"):
-            legacy_path = None
-        else:
-            app.setOrganizationName("Luna Life Helper")
-            app.setApplicationName("Luna Life Helper")
-            old_directory = QStandardPaths.writableLocation(
-                QStandardPaths.StandardLocation.AppDataLocation
-            )
-            app.setOrganizationName("Solar Forge Life Helper")
-            app.setApplicationName("Solar Forge Life Helper")
-            legacy_path = Path(old_directory) / "luna-desktop.db" if old_directory else None
-        if legacy_path is not None:
-            seed_database_from_legacy(legacy_path, data_path)
+        store = SettingsStore(configuration_directory())
+        settings = store.load()
+        default = default_data_directory()
+        has_override = bool(os.environ.get("SOLAR_FORGE_DESKTOP_DATA_DIR"))
+        save_choice = False
+        new_setup = False
+        if settings is None and not has_override and not (default / DATABASE_NAME).is_file():
+            setup = StorageSetupDialog(default, default_backup_directory())
+            if setup.exec() != QDialog.DialogCode.Accepted:
+                return 0
+            settings = setup.selected_settings()
+            settings.backup_directory.mkdir(parents=True, exist_ok=True)
+            save_choice = new_setup = True
+        while True:
+            try:
+                directory = (settings.data_directory if new_setup else
+                             resolve_data_directory(settings, default, os.environ))
+                break
+            except DataLocationUnavailable:
+                replacement = locate_existing_database(settings.data_directory)
+                if replacement is None:
+                    return 1
+                settings = AppSettings(replacement, settings.backup_directory)
+                save_choice = True
+        data_path = directory / DATABASE_NAME
+        import_legacy_database(app, data_path)
         storage = Storage(data_path)
+        if (save_choice or (settings is None and not has_override)) and not has_override:
+            store.save(settings or AppSettings(directory))
     except Exception as exc:
         QMessageBox.critical(None, "Solar Forge Life Helper could not start", str(exc))
         return 1
