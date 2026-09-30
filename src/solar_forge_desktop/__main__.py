@@ -4,6 +4,7 @@ import os
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QLockFile
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from solar_forge_desktop.auth import AuthService
@@ -16,6 +17,7 @@ from solar_forge_desktop.configuration import (
     SettingsStore,
     resolve_data_directory,
 )
+from solar_forge_desktop.data_move import perform_pending_move
 from solar_forge_desktop.location_dialogs import StorageSetupDialog, locate_existing_database
 from solar_forge_desktop.paths import (
     configuration_directory,
@@ -68,10 +70,29 @@ def main() -> int:
     app.setOrganizationName("Solar Forge Life Helper")
     app.setApplicationName("Solar Forge Life Helper")
     try:
-        store = SettingsStore(configuration_directory())
+        config_dir = configuration_directory()
+        config_dir.mkdir(parents=True, exist_ok=True)
+        instance_lock = QLockFile(str(config_dir / "app.lock"))
+        if not instance_lock.tryLock(0):
+            QMessageBox.warning(
+                None, "Solar Forge Life Helper is already open",
+                "Close the other instance before opening this one.",
+            )
+            return 1
+        store = SettingsStore(config_dir)
         settings = store.load()
         default = default_data_directory()
         has_override = bool(os.environ.get("SOLAR_FORGE_DESKTOP_DATA_DIR"))
+        if settings is not None and settings.pending_move_directory and not has_override:
+            try:
+                settings = perform_pending_move(store, settings)
+            except Exception as exc:
+                QMessageBox.warning(
+                    None, "Data move could not finish",
+                    f"Your original database has not been removed.\n\n{exc}",
+                )
+                settings = AppSettings(settings.data_directory, settings.backup_directory)
+                store.save(settings)
         save_choice = False
         new_setup = False
         if settings is None and not has_override and not (default / DATABASE_NAME).is_file():
@@ -103,7 +124,9 @@ def main() -> int:
     app.aboutToQuit.connect(storage.close)
     session = DesktopSession(storage, store, directory)
     app.session = session
-    return app.exec()
+    result = app.exec()
+    instance_lock.unlock()
+    return result
 
 
 if __name__ == "__main__":

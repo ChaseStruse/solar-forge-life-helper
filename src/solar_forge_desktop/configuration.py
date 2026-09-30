@@ -19,6 +19,7 @@ class DataLocationUnavailable(RuntimeError):
 class AppSettings:
     data_directory: Path
     backup_directory: Path | None = None
+    pending_move_directory: Path | None = None
 
 
 def _absolute_directory(value: str | Path, label: str) -> Path:
@@ -43,7 +44,10 @@ class SettingsStore:
             backup_value = document.get("backup_directory")
             backup = (_absolute_directory(backup_value, "Backup location")
                       if backup_value is not None else None)
-            return AppSettings(data, backup)
+            pending_value = document.get("pending_move_directory")
+            pending = (_absolute_directory(pending_value, "Pending data location")
+                       if pending_value is not None else None)
+            return AppSettings(data, backup, pending)
         except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
             raise ValueError(f"Could not read application settings: {self.path}") from exc
 
@@ -51,6 +55,8 @@ class SettingsStore:
         data = _absolute_directory(settings.data_directory, "Data location")
         backup = (_absolute_directory(settings.backup_directory, "Backup location")
                   if settings.backup_directory is not None else None)
+        pending = (_absolute_directory(settings.pending_move_directory, "Pending data location")
+                   if settings.pending_move_directory is not None else None)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         fd, temporary_name = tempfile.mkstemp(prefix=".settings-", dir=self.path.parent)
         temporary = Path(temporary_name)
@@ -58,7 +64,8 @@ class SettingsStore:
             with os.fdopen(fd, "w", encoding="utf-8") as stream:
                 os.chmod(temporary, 0o600)
                 json.dump({"version": 1, "data_directory": str(data),
-                           "backup_directory": str(backup) if backup else None}, stream)
+                           "backup_directory": str(backup) if backup else None,
+                           "pending_move_directory": str(pending) if pending else None}, stream)
                 stream.write("\n")
                 stream.flush()
                 os.fsync(stream.fileno())

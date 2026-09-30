@@ -98,7 +98,8 @@ The app writes to the operating system's per-user application data directory so 
 persist between launches. A new local installation asks you to choose the data folder
 and a separate folder for future backups; automatic backups are still planned. Open
 **Settings** in the sidebar to review the active data folder or change the future backup
-folder. Moving the active database from Settings is still planned. On first native launch,
+folder. On a local installation, **Move data…** copies and verifies the database on the next
+launch and retains the original. On first native launch,
 it copies an existing database from
 the former Luna Life Helper app data directory into the new location. For an isolated
 test run, set `SOLAR_FORGE_DESKTOP_DATA_DIR` to a new, empty **absolute** directory

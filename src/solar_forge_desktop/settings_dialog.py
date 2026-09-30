@@ -1,5 +1,6 @@
 """User-facing storage preferences for the current desktop session."""
 
+import os
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from solar_forge_desktop.configuration import AppSettings, SettingsStore
+from solar_forge_desktop.data_move import queue_data_move
 from solar_forge_desktop.location_dialogs import STYLE
 from solar_forge_desktop.paths import default_backup_directory
 
@@ -25,10 +27,18 @@ def save_backup_directory(store: SettingsStore, data_directory: Path, backup: Pa
         raise ValueError("Choose an absolute path for the backup folder.")
     if backup.resolve() == data_directory.resolve():
         raise ValueError("Choose a different folder from your data folder.")
+    current = store.load()
+    if (
+        current and current.pending_move_directory
+        and backup.resolve() == current.pending_move_directory.resolve()
+    ):
+        raise ValueError("Choose a different folder from your planned data folder.")
     if backup.exists() and not backup.is_dir():
         raise ValueError(f"This is not a folder: {backup}")
     backup.mkdir(parents=True, exist_ok=True)
-    store.save(AppSettings(data_directory, backup))
+    pending = current.pending_move_directory if current else None
+    selected_data = current.data_directory if current else data_directory
+    store.save(AppSettings(selected_data, backup, pending))
 
 
 class StorageSettingsDialog(QDialog):
@@ -50,10 +60,22 @@ class StorageSettingsDialog(QDialog):
         self.data_input.setAccessibleName("Current data folder")
         self.data_input.setReadOnly(True)
         layout.addWidget(self.data_input)
-        hint = QLabel("Your SQLite database is in this folder. Moving it safely is coming next.")
+        hint = QLabel("Your SQLite database is in this folder.")
         hint.setObjectName("hint")
         hint.setWordWrap(True)
         layout.addWidget(hint)
+        if not os.environ.get("SOLAR_FORGE_DESKTOP_DATA_DIR"):
+            move = QPushButton("Move data…")
+            move.clicked.connect(self._queue_move)
+            layout.addWidget(move)
+            if saved := store.load():
+                if saved.pending_move_directory:
+                    pending_note = QLabel(
+                        f"Move planned for next launch: {saved.pending_move_directory}"
+                    )
+                    pending_note.setObjectName("hint")
+                    pending_note.setWordWrap(True)
+                    layout.addWidget(pending_note)
         layout.addWidget(QLabel("Backup folder"))
         row = QHBoxLayout()
         saved = store.load()
@@ -89,6 +111,25 @@ class StorageSettingsDialog(QDialog):
         )
         if folder:
             self.backup_input.setText(folder)
+
+    def _queue_move(self) -> None:
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose new data folder", str(self.data_directory)
+        )
+        if not folder:
+            return
+        try:
+            current = self.store.load() or AppSettings(self.data_directory)
+            queue_data_move(self.store, current, Path(folder))
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Could not plan data move", str(exc))
+            return
+        QMessageBox.information(
+            self, "Data move planned",
+            "Close and reopen Solar Forge Life Helper to copy and verify your database. "
+            "The original will remain in its current folder.",
+        )
+        self.reject()
 
     def accept(self) -> None:
         try:
