@@ -10,7 +10,7 @@ WORKDIR /desktop
 COPY pyproject.toml uv.lock ./
 COPY src ./src
 RUN uv sync --frozen --no-dev
-RUN mkdir -p /data && chown "${SOLAR_FORGE_DESKTOP_UID}:${SOLAR_FORGE_DESKTOP_GID}" /data
-VOLUME ["/data"]
+RUN mkdir -p /data /config /backups && chown "${SOLAR_FORGE_DESKTOP_UID}:${SOLAR_FORGE_DESKTOP_GID}" /data /config /backups
+VOLUME ["/data", "/config", "/backups"]
 USER ${SOLAR_FORGE_DESKTOP_UID}:${SOLAR_FORGE_DESKTOP_GID}
 CMD ["/desktop/.venv/bin/solar-forge-desktop"]

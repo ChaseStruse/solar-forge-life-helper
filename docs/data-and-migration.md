@@ -14,7 +14,9 @@ You can choose another Docker volume with `SOLAR_FORGE_DESKTOP_VOLUME_NAME`. Cha
 
 On a new local installation, the first-run screen lets you choose the data and future backup folders. The app stores those folder choices in `settings.json` under Qt's per-user application config directory, outside the database. At startup, `SOLAR_FORGE_DESKTOP_DATA_DIR` takes precedence over the saved data folder, which takes precedence over the operating system default. An environment override is meant for deliberate, often disposable runs; it does not replace the saved choice. A saved folder must still contain `solar-forge-desktop.db` on later launches, or the app asks you to locate the existing data.
 
-Docker Compose currently fixes the in-container data path at `/data`, so the native folder picker does not choose arbitrary host folders for Docker. A host-side folder setup and a Settings screen for changing saved locations remain planned. Selecting a backup folder now records your preference; automatic backups and restore are not yet available.
+Open **Settings** in the sidebar to see the active data folder and choose a separate backup folder. The data path is read only for now; a verified move flow is planned. Selecting a backup folder records your preference; automatic backups and restore are not yet available.
+
+Docker Compose fixes the in-container data path at `/data`, so the folder picker cannot choose arbitrary host folders that have not been mounted. Compose keeps preferences in a `/config` volume and offers a separate `/backups` volume as the default backup folder. These volumes survive `docker compose down`; `docker compose down -v` deletes them. A host-side folder setup remains planned. If you browse for another backup folder inside Compose, it must be mounted into the container to persist.
 
 ## Import an earlier Luna desktop database
 

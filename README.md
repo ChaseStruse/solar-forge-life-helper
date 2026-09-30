@@ -42,10 +42,10 @@ docker compose up --build
 Compose builds the Python 3.14 image and displays the Qt window through the current
 Wayland session. Tasks, budgets, journals, medicine logs, habits, calorie entries,
 weight records, workout logs, pet records, meal plans, maintenance items, calendar events,
-and profile settings persist in the Docker volume
-`solar-forge-life-helper-python-desktop`
-after stopping the container. `docker compose down` keeps this volume; `docker compose
-down -v` deletes it. The container has no network access. Press Ctrl+C to stop it, or
+and profile settings persist in the Docker data volume
+`solar-forge-life-helper-python-desktop`. Storage preferences and the future backup folder
+have separate persistent Compose volumes. `docker compose down` keeps all three volumes;
+`docker compose down -v` deletes them. The container has no network access. Press Ctrl+C to stop it, or
 run `docker compose down`.
 
 Compose mounts `src` read only, so a normal `docker compose down` followed by
@@ -96,8 +96,10 @@ uv run --frozen solar-forge-desktop
 
 The app writes to the operating system's per-user application data directory so tasks
 persist between launches. A new local installation asks you to choose the data folder
-and a separate folder for future backups; automatic backups are still planned. On first
-native launch, it copies an existing database from
+and a separate folder for future backups; automatic backups are still planned. Open
+**Settings** in the sidebar to review the active data folder or change the future backup
+folder. Moving the active database from Settings is still planned. On first native launch,
+it copies an existing database from
 the former Luna Life Helper app data directory into the new location. For an isolated
 test run, set `SOLAR_FORGE_DESKTOP_DATA_DIR` to a new, empty **absolute** directory
 before launch. For example, on Linux use

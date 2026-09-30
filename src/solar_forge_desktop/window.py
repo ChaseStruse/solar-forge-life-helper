@@ -34,6 +34,7 @@ from solar_forge_desktop.calendar_page import CalendarPage
 from solar_forge_desktop.calorie import CalorieService
 from solar_forge_desktop.calorie_page import STYLE as CALORIE_STYLE
 from solar_forge_desktop.calorie_page import CaloriePage
+from solar_forge_desktop.configuration import SettingsStore
 from solar_forge_desktop.habit_page import STYLE as HABIT_STYLE
 from solar_forge_desktop.habit_page import HabitPage
 from solar_forge_desktop.habits import HabitService
@@ -55,6 +56,7 @@ from solar_forge_desktop.pets import PetService
 from solar_forge_desktop.profile import ProfileService, ProfileView
 from solar_forge_desktop.profile_page import STYLE as PROFILE_STYLE
 from solar_forge_desktop.profile_page import ProfilePage
+from solar_forge_desktop.settings_dialog import StorageSettingsDialog
 from solar_forge_desktop.storage import TaskItem
 from solar_forge_desktop.tasks import TaskService
 from solar_forge_desktop.weight import WeightService
@@ -205,6 +207,7 @@ class TaskWindow(QMainWindow):
     def __init__(
         self, service: TaskService, profile_id: int, on_close: Callable[[], None],
         profile_name: str = "Home", on_sign_out: Callable[[], None] | None = None,
+        settings_store: SettingsStore | None = None, data_directory: Path | None = None,
     ):
         super().__init__()
         self.service = service
@@ -212,6 +215,8 @@ class TaskWindow(QMainWindow):
         self.profile_name = profile_name
         self.on_close = on_close
         self.on_sign_out = on_sign_out
+        self.settings_store = settings_store
+        self.data_directory = data_directory
         self.setWindowTitle("Solar Forge Life Helper — Dashboard")
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "solar-forge.svg")))
         self.resize(1280, 800)
@@ -335,6 +340,12 @@ class TaskWindow(QMainWindow):
         self.calendar_nav.clicked.connect(self.show_calendar)
         nav.addWidget(self.calendar_nav)
         nav.addStretch()
+        if self.settings_store is not None and self.data_directory is not None:
+            settings = QPushButton("⚙   Settings")
+            settings.setObjectName("nav")
+            settings.setAccessibleName("Storage settings")
+            settings.clicked.connect(self.show_storage_settings)
+            nav.addWidget(settings)
         self.sidebar_profile = QLabel(f"◉   {self.profile_name}")
         self.sidebar_profile.setObjectName("muted")
         nav.addWidget(self.sidebar_profile)
@@ -699,6 +710,10 @@ class TaskWindow(QMainWindow):
     def show_profile(self) -> None:
         self._show_page(13, "Solar Forge Profile")
         self.profile_page.activate()
+
+    def show_storage_settings(self) -> None:
+        if self.settings_store is not None and self.data_directory is not None:
+            StorageSettingsDialog(self.settings_store, self.data_directory, self).exec()
 
     def _build_tasks(self) -> QWidget:
 

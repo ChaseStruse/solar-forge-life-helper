@@ -37,5 +37,11 @@ def configuration_directory() -> Path:
 
 
 def default_backup_directory() -> Path:
+    override = os.environ.get("SOLAR_FORGE_DESKTOP_BACKUP_DIR")
+    if override:
+        location = Path(override).expanduser()
+        if not location.is_absolute():
+            raise ValueError("SOLAR_FORGE_DESKTOP_BACKUP_DIR must be an absolute path.")
+        return location
     location = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
     return Path(location or Path.home()) / "Solar Forge Life Helper Backups"

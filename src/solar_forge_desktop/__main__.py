@@ -2,6 +2,7 @@
 
 import os
 import sys
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
@@ -29,8 +30,13 @@ from solar_forge_desktop.window import TaskWindow
 class DesktopSession:
     """Own the database and switch between the account gate and scoped workspace."""
 
-    def __init__(self, storage: Storage):
+    def __init__(
+        self, storage: Storage, store: SettingsStore | None = None,
+        data_directory: Path | None = None,
+    ):
         self.storage = storage
+        self.store = store
+        self.data_directory = data_directory
         self.auth = AuthService(storage)
         self.auth_window: AuthWindow | None = None
         self.task_window: TaskWindow | None = None
@@ -50,6 +56,7 @@ class DesktopSession:
         self.task_window = TaskWindow(
             TaskService(self.storage), profile_id, lambda: None,
             profile_name=self.storage.profile_name(profile_id), on_sign_out=self.show_auth,
+            settings_store=self.store, data_directory=self.data_directory,
         )
         self.task_window.show()
         if previous is not None:
@@ -94,7 +101,7 @@ def main() -> int:
         QMessageBox.critical(None, "Solar Forge Life Helper could not start", str(exc))
         return 1
     app.aboutToQuit.connect(storage.close)
-    session = DesktopSession(storage)
+    session = DesktopSession(storage, store, directory)
     app.session = session
     return app.exec()
 
