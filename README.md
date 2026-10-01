@@ -12,7 +12,8 @@ five at 1600px, and six at 1920px.
 Easy Budget supports monthly income, expenses, recurrence, filtering, sorting and CSV
 export with exact-cent SQLite storage. Easy Journal supports private entry creation,
 editing, deletion, and a newest-first timeline. Medicine Tracker records doses for
-people and pets with their next scheduled times. Habit Tracker records daily yes/no
+people and pets with their next scheduled times and opt-in next-dose reminders.
+Habit Tracker records daily yes/no
 checks in a weekly grid. Calorie Tracker has daily goals, food logs, and progress
 for the selected date. Weight Tracker has goals, daily weigh-ins, and an offline
 trend chart. Workout Tracker logs daily exercises with sets, reps, bodyweight or

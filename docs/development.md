@@ -9,6 +9,8 @@ The desktop app is a Python 3.14/PySide6 project managed with uv. `pyproject.tom
 | `src/solar_forge_desktop/__main__.py` | Starts Qt, locates or imports the database, and switches between sign-in and the workspace. |
 | `src/solar_forge_desktop/window.py` | Main window, dashboard, sidebar, themes, and Task List page. |
 | `src/solar_forge_desktop/calendar_widgets.py` | Shared selector and calendar popup styling, including calendar header colors for each theme. |
+| `src/solar_forge_desktop/reminder_controls.py` | Shared lead-time and time-zone selectors for reminder forms. |
+| `src/solar_forge_desktop/reminder_scheduler.py` | Checks opt-in calendar and medicine reminders while a profile is signed in. |
 | `src/solar_forge_desktop/*_page.py` | Views and interactions for the other modules. |
 | `src/solar_forge_desktop/*.py` | Services and application logic for each module. |
 | `src/solar_forge_desktop/storage.py` | SQLAlchemy models, schema upgrades, and database import. |

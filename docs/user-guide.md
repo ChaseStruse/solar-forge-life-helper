@@ -13,7 +13,7 @@ The dashboard rearranges its cards as you resize the window. Each account sees i
 | Easy Budget | Set monthly income, record expenses, review recurring entries, filter or sort transactions, and export CSV. |
 | Task List | Add tasks, mark them complete, share them with the household, and delete tasks you own. |
 | Easy Journal | Write private entries, browse the newest entries first, edit them, and delete them. |
-| Medicine Tracker | Record medicine doses for people or pets and track the next scheduled time. |
+| Medicine Tracker | Record medicine doses for people or pets, track the next scheduled time, and set an optional next-dose reminder. |
 | Habit Tracker | Add habits and mark daily yes/no checks in a weekly grid. |
 | Calorie Tracker | Set a daily calorie goal and log food for a selected date. |
 | Weight Tracker | Set a weight goal, record weigh-ins, and view the trend chart. |
@@ -36,6 +36,8 @@ In **Task List**, choose **Only me** or **Household** before adding a task. The 
 For a timed event, select **Remind me**, choose when to be reminded, and confirm the event's time zone. The displayed time zone comes from the desktop; change it if the event's clock time belongs to another zone. A reminder on a recurring event applies to each occurrence. Each signed-in household member can set their own reminder for an event they can see. All-day event reminders are not available yet.
 
 While signed in, the app checks for due reminders every minute and catches up on reminders due in the previous 24 hours. A reminder appears in the top bar and among the five most recent deliveries on the Calendar page. The top-bar alert opens Calendar. The app also requests a desktop notification when the system tray supports messages, but the desktop may suppress it. Delivery history is removed with its associated event or reminder rule. The app does not check reminders while closed or signed out.
+
+In **Medicine Tracker**, select **Remind me about the next dose** when logging a dose. Choose the lead time and the time zone for the next-dose clock time. Each dose record has one next-dose reminder; logging a later dose creates a separate record and can have its own reminder. The five most recent deliveries appear in Medicine Tracker. The same signed-in scheduler, in-app alert, 24-hour catch-up window, and optional desktop notification apply. Medicine logs and their reminders remain private to their account.
 
 ## Your data
 
