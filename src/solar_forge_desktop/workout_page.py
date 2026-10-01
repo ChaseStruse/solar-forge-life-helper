@@ -45,7 +45,6 @@ QLineEdit#workoutInput, QDateEdit#workoutDate, QTextEdit#workoutNotes {
     border-radius: 9px; padding: 10px 12px; }
 QLineEdit#workoutInput:focus, QDateEdit#workoutDate:focus,
 QTextEdit#workoutNotes:focus { border-color: #8b5cf6; }
-QDateEdit::up-button, QDateEdit::down-button { background: #302943; width: 18px; }
 QPushButton#workoutPrimary { color: white; border: none; border-radius: 9px;
     background: #8b5cf6; padding: 10px 14px; font-weight: 700; }
 QPushButton#workoutSecondary { color: #f3f4f6; border: 1px solid #483a64;

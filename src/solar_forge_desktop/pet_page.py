@@ -46,7 +46,6 @@ QLineEdit#petInput, QTextEdit#petNotes, QDateEdit#petDate, QComboBox#petCategory
 QLineEdit#petInput:focus, QTextEdit#petNotes:focus,
 QDateEdit#petDate:focus, QComboBox#petCategory:focus { border-color: #8b5cf6; }
 QComboBox#petCategory QAbstractItemView { background: #211b30; color: #f3f4f6; }
-QDateEdit::up-button, QDateEdit::down-button { background: #302943; width: 18px; }
 QPushButton#petPrimary { background: #8b5cf6; color: white; border: none;
     border-radius: 9px; padding: 10px 14px; font-weight: 700; }
 QPushButton#petSecondary, QPushButton#petTab { background: #292143;

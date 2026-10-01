@@ -8,6 +8,7 @@ from typing import Callable
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
+    QCalendarWidget,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -31,9 +32,9 @@ from solar_forge_desktop.budget import BudgetService
 from solar_forge_desktop.budget_page import STYLE as BUDGET_STYLE
 from solar_forge_desktop.budget_page import BudgetPage
 from solar_forge_desktop.calendar import CalendarService
-from solar_forge_desktop.calendar_widgets import SELECTOR_STYLE
 from solar_forge_desktop.calendar_page import STYLE as CALENDAR_STYLE
 from solar_forge_desktop.calendar_page import CalendarPage
+from solar_forge_desktop.calendar_widgets import SELECTOR_STYLE, style_calendar
 from solar_forge_desktop.calorie import CalorieService
 from solar_forge_desktop.calorie_page import STYLE as CALORIE_STYLE
 from solar_forge_desktop.calorie_page import CaloriePage
@@ -505,18 +506,24 @@ class TaskWindow(QMainWindow):
     def _set_theme(self, name: str) -> None:
         check_icon = (Path(__file__).parent / "assets" / "task-checked.svg").as_posix()
         self.setStyleSheet(_themed_style(STYLE.replace("__CHECK_ICON__", check_icon), name))
-        self.budget_page.setStyleSheet(_themed_style(BUDGET_STYLE, name))
-        self.journal_page.setStyleSheet(_themed_style(JOURNAL_STYLE, name))
-        self.medicine_page.setStyleSheet(_themed_style(MEDICINE_STYLE, name))
-        self.habit_page.setStyleSheet(_themed_style(HABIT_STYLE, name))
-        self.calorie_page.setStyleSheet(_themed_style(CALORIE_STYLE, name))
-        self.weight_page.setStyleSheet(_themed_style(WEIGHT_STYLE, name))
-        self.workout_page.setStyleSheet(_themed_style(WORKOUT_STYLE, name))
-        self.pet_page.setStyleSheet(_themed_style(PET_STYLE, name))
-        self.meal_page.setStyleSheet(_themed_style(MEAL_STYLE, name))
-        self.maintenance_page.setStyleSheet(_themed_style(MAINTENANCE_STYLE, name))
-        self.calendar_page.setStyleSheet(_themed_style(CALENDAR_STYLE, name))
-        self.profile_page.setStyleSheet(_themed_style(PROFILE_STYLE, name))
+        page_styles = (
+            (self.budget_page, BUDGET_STYLE),
+            (self.journal_page, JOURNAL_STYLE),
+            (self.medicine_page, MEDICINE_STYLE),
+            (self.habit_page, HABIT_STYLE),
+            (self.calorie_page, CALORIE_STYLE),
+            (self.weight_page, WEIGHT_STYLE),
+            (self.workout_page, WORKOUT_STYLE),
+            (self.pet_page, PET_STYLE),
+            (self.meal_page, MEAL_STYLE),
+            (self.maintenance_page, MAINTENANCE_STYLE),
+            (self.calendar_page, CALENDAR_STYLE),
+            (self.profile_page, PROFILE_STYLE),
+        )
+        for page, style in page_styles:
+            page.setStyleSheet(_themed_style(style, name))
+        for calendar in self.findChildren(QCalendarWidget):
+            style_calendar(calendar, THEMES[name])
         self.theme_button.setStyleSheet(_themed_style(
             "background: #151027; border: 1px solid #292339;"
             "border-radius: 22px; padding: 10px 15px; font-weight: 700;", name

@@ -36,7 +36,6 @@ QLabel#medicineStatus { color: #fb7185; }
 QLineEdit#medicineInput, QDateTimeEdit#medicineInput { background: #211b30;
     color: #f3f4f6; border: 1px solid #302943; border-radius: 9px; padding: 10px 12px; }
 QLineEdit#medicineInput:focus, QDateTimeEdit#medicineInput:focus { border-color: #8b5cf6; }
-QDateTimeEdit::up-button, QDateTimeEdit::down-button { background: #302943; width: 18px; }
 QPushButton#medicinePrimary { color: white; border: none; border-radius: 10px;
     background: #8b5cf6; padding: 10px 14px; font-weight: 700; }
 QPushButton#medicineDanger { background: #3a1d39; color: #fb7185;

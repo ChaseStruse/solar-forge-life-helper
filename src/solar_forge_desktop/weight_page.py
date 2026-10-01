@@ -45,7 +45,6 @@ QLabel#weightBlue { color: #38bdf8; font-size: 23px; font-weight: 700; }
 QLineEdit#weightInput, QDateEdit#weightDate { background: #211b30; color: #f3f4f6;
     border: 1px solid #302943; border-radius: 9px; padding: 10px 12px; }
 QLineEdit#weightInput:focus, QDateEdit#weightDate:focus { border-color: #8b5cf6; }
-QDateEdit::up-button, QDateEdit::down-button { background: #302943; width: 18px; }
 QPushButton#weightPrimary { color: white; border: none; border-radius: 9px;
     background: #8b5cf6; padding: 10px 14px; font-weight: 700; }
 QPushButton#weightSecondary { color: #f3f4f6; border: 1px solid #6366f1;

@@ -55,7 +55,6 @@ QDateEdit#maintenanceDate, QComboBox#maintenanceSelect { background: #211b30;
     padding: 9px 11px; }
 QComboBox#maintenanceSelect QAbstractItemView { background: #211b30;
     color: #f3f4f6; }
-QDateEdit::up-button, QDateEdit::down-button { background: #302943; width: 18px; }
 QPushButton#maintenancePrimary { background: #8b5cf6; color: white; border: none;
     border-radius: 9px; padding: 10px 14px; font-weight: 700; }
 QPushButton#maintenanceDanger { background: #3a1d39; color: #fb7185;

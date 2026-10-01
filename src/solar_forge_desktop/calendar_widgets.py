@@ -1,6 +1,7 @@
 """Shared styling for selector controls and Qt-owned calendar popups."""
 
 from pathlib import Path
+from typing import Mapping
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QIcon, QTextCharFormat
@@ -45,17 +46,20 @@ QCalendarWidget#solarForgeCalendar QAbstractItemView {
 """
 
 
-def style_calendar(calendar: QCalendarWidget) -> None:
+def style_calendar(calendar: QCalendarWidget, colors: Mapping[str, str] | None = None) -> None:
     """Apply the shared Solar Forge palette to Qt's own calendar popup."""
+    colors = colors or {}
+    def color(value: str) -> QColor:
+        return QColor(colors.get(value, value))
     calendar.setObjectName("solarForgeCalendar")
     calendar.setMinimumSize(300, 255)
     calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
     header = QTextCharFormat()
-    header.setForeground(QColor("#a1a1aa"))
-    header.setBackground(QColor("#211b30"))
+    header.setForeground(color("#a1a1aa"))
+    header.setBackground(color("#211b30"))
     calendar.setHeaderTextFormat(header)
     weekend = QTextCharFormat()
-    weekend.setForeground(QColor("#f3f4f6"))
+    weekend.setForeground(color("#f3f4f6"))
     for day in (Qt.DayOfWeek.Saturday, Qt.DayOfWeek.Sunday):
         calendar.setWeekdayTextFormat(day, weekend)
     for name, label in (("qt_calendar_prevmonth", "‹"),

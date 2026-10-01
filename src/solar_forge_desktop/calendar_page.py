@@ -49,8 +49,6 @@ QTimeEdit#calendarInput, QComboBox#calendarInput { background: #211b30;
     color: #f3f4f6; border: 1px solid #39314e; border-radius: 9px;
     padding: 8px 10px; }
 QComboBox#calendarInput QAbstractItemView { background: #211b30; color: #f3f4f6; }
-QDateEdit::up-button, QDateEdit::down-button, QTimeEdit::up-button,
-QTimeEdit::down-button { background: #302943; width: 18px; }
 QPushButton#calendarPrimary { background: #8b5cf6; color: white; border: 0;
     border-radius: 9px; padding: 10px 14px; font-weight: 700; }
 QPushButton#calendarSecondary { background: #292143; color: #f3f4f6;
