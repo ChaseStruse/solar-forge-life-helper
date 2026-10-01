@@ -423,8 +423,12 @@ class TaskReminder(Base):
     __table_args__ = (UniqueConstraint("profile_id", "task_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profile_id: Mapped[int] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
-    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     lead_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     timezone_id: Mapped[str] = mapped_column(String(100), nullable=False)
 
@@ -434,7 +438,9 @@ class TaskReminderDelivery(Base):
     __table_args__ = (UniqueConstraint("reminder_id", "due_at"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    reminder_id: Mapped[int] = mapped_column(ForeignKey("task_reminders.id", ondelete="CASCADE"), nullable=False, index=True)
+    reminder_id: Mapped[int] = mapped_column(
+        ForeignKey("task_reminders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     due_at: Mapped[str] = mapped_column(String(16), nullable=False)
     delivered_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
@@ -444,8 +450,12 @@ class MaintenanceReminder(Base):
     __table_args__ = (UniqueConstraint("profile_id", "item_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profile_id: Mapped[int] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
-    item_id: Mapped[int] = mapped_column(ForeignKey("maintenance_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("maintenance_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     lead_days: Mapped[int] = mapped_column(Integer, nullable=False)
     time_of_day: Mapped[str] = mapped_column(String(5), nullable=False)
     timezone_id: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -456,7 +466,9 @@ class MaintenanceReminderDelivery(Base):
     __table_args__ = (UniqueConstraint("reminder_id", "next_due_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    reminder_id: Mapped[int] = mapped_column(ForeignKey("maintenance_reminders.id", ondelete="CASCADE"), nullable=False, index=True)
+    reminder_id: Mapped[int] = mapped_column(
+        ForeignKey("maintenance_reminders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     next_due_date: Mapped[str] = mapped_column(String(10), nullable=False)
     delivered_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
@@ -742,7 +754,9 @@ class Storage:
             tables = set(connection.execute(text(tables_sql)).scalars())
             if not {"task_reminders", "task_reminder_deliveries",
                     "maintenance_reminders", "maintenance_reminder_deliveries"}.issubset(tables):
-                raise RuntimeError("Desktop database is missing task or maintenance reminder tables.")
+                raise RuntimeError(
+                    "Desktop database is missing task or maintenance reminder tables."
+                )
             columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(tasks)")}
             if "due_at" not in columns:
                 raise RuntimeError("Desktop database is missing task due dates.")
@@ -925,7 +939,9 @@ class Storage:
         with self.engine.begin() as connection:
             if connection.exec_driver_sql("PRAGMA user_version").scalar_one() != 17:
                 return
-            connection.exec_driver_sql("ALTER TABLE tasks ADD COLUMN due_at VARCHAR(16)")
+            columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(tasks)")}
+            if "due_at" not in columns:
+                connection.exec_driver_sql("ALTER TABLE tasks ADD COLUMN due_at VARCHAR(16)")
             for table in (TaskReminder.__table__, TaskReminderDelivery.__table__,
                           MaintenanceReminder.__table__, MaintenanceReminderDelivery.__table__):
                 table.create(connection, checkfirst=True)
