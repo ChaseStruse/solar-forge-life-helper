@@ -28,7 +28,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from solar_forge_desktop.budget import BudgetService, BudgetView, ExpenseItem, current_month, format_money
+from solar_forge_desktop.budget import (
+    BudgetService,
+    BudgetView,
+    ExpenseItem,
+    current_month,
+    format_money,
+)
 from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, SELECTOR_STYLE, style_calendar
 from solar_forge_desktop.workers import BackgroundWorker
 

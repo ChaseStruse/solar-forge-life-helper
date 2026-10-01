@@ -118,7 +118,8 @@ class AuthWindow(QWidget):
 
     def set_signup(self, signup: bool) -> None:
         self._signup = signup
-        self.setWindowTitle("Solar Forge Life Helper — " + ("Create account" if signup else "Sign in"))
+        action = "Create account" if signup else "Sign in"
+        self.setWindowTitle(f"Solar Forge Life Helper — {action}")
         self.heading.setText("Create your account" if signup else "Welcome back")
         self.subtitle.setText(
             "Your username and password stay on this device."
