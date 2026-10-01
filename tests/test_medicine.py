@@ -28,7 +28,7 @@ def test_v16_upgrade_preserves_medicine_logs(tmp_path: Path) -> None:
     assert MedicineService(upgraded).view(profile).logs[0].id == log_id
     upgraded.close()
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 17
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 18
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
     with closing(sqlite3.connect(
         path.with_name("family.db.pre-medicine-reminders-v16")
@@ -134,7 +134,7 @@ def test_v4_upgrade_snapshots_before_medicine_schema(tmp_path: Path) -> None:
             row[0] for row in snapshot.execute("SELECT name FROM sqlite_master")
         }
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 17
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 18
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
