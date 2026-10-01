@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, style_calendar
+from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, SELECTOR_STYLE, style_calendar
 from solar_forge_desktop.medicine import MedicineService, MedicineView
 from solar_forge_desktop.storage import MedicineItem
 from solar_forge_desktop.workers import BackgroundWorker
@@ -41,7 +41,7 @@ QPushButton#medicinePrimary { color: white; border: none; border-radius: 10px;
     background: #8b5cf6; padding: 10px 14px; font-weight: 700; }
 QPushButton#medicineDanger { background: #3a1d39; color: #fb7185;
     border: 1px solid #5b3048; border-radius: 9px; padding: 8px 12px; }
-""" + CALENDAR_STYLE
+""" + CALENDAR_STYLE + SELECTOR_STYLE
 
 
 def _label(text: str, name: str) -> QLabel:

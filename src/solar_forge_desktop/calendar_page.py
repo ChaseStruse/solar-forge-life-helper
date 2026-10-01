@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from solar_forge_desktop.calendar import CalendarService, CalendarView, Event, Occurrence, tag_color
-from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, style_calendar
+from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, SELECTOR_STYLE, style_calendar
 from solar_forge_desktop.workers import BackgroundWorker
 
 STYLE = """
@@ -60,7 +60,7 @@ QPushButton#calendarDanger { background: #3a1d39; color: #fb7185;
 QScrollBar:vertical, QScrollBar:horizontal { background: #151027; }
 QScrollBar::handle:vertical, QScrollBar::handle:horizontal { background: #483a64;
     border-radius: 5px; min-width: 24px; min-height: 24px; }
-""" + CALENDAR_STYLE
+""" + CALENDAR_STYLE + SELECTOR_STYLE
 
 
 def _label(text: str, name: str) -> QLabel:

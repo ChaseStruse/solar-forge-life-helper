@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, style_calendar
+from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, SELECTOR_STYLE, style_calendar
 from solar_forge_desktop.calorie import CalorieDay, CalorieService, FoodItem
 from solar_forge_desktop.workers import BackgroundWorker
 
@@ -64,7 +64,7 @@ QTableWidget#calorieTable QHeaderView::section { background: #211b30;
 QScrollBar:vertical { background: #151027; width: 10px; }
 QScrollBar::handle:vertical { background: #483a64; border-radius: 5px; min-height: 28px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-""" + CALENDAR_STYLE
+""" + CALENDAR_STYLE + SELECTOR_STYLE
 
 
 def _label(text: str, name: str) -> QLabel:

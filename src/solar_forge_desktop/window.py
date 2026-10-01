@@ -31,6 +31,7 @@ from solar_forge_desktop.budget import BudgetService
 from solar_forge_desktop.budget_page import STYLE as BUDGET_STYLE
 from solar_forge_desktop.budget_page import BudgetPage
 from solar_forge_desktop.calendar import CalendarService
+from solar_forge_desktop.calendar_widgets import SELECTOR_STYLE
 from solar_forge_desktop.calendar_page import STYLE as CALENDAR_STYLE
 from solar_forge_desktop.calendar_page import CalendarPage
 from solar_forge_desktop.calorie import CalorieService
@@ -127,7 +128,7 @@ QCheckBox::indicator:checked { border: none; background: transparent;
                                image: url("__CHECK_ICON__"); }
 QScrollArea, QScrollArea QWidget, QWidget#taskListContainer {
     border: none; background: transparent; }
-"""
+""" + SELECTOR_STYLE
 
 THEMES = {
     "Solar Forge Glow": {},
