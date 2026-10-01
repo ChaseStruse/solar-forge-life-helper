@@ -1,9 +1,9 @@
 """Native month and week calendar, matching the web event form and board."""
 
 from datetime import date, datetime, time, timedelta
-from zoneinfo import ZoneInfo, available_timezones
+from zoneinfo import ZoneInfo
 
-from PySide6.QtCore import QDate, Qt, QTime, QTimeZone
+from PySide6.QtCore import QDate, Qt, QTime
 from PySide6.QtWidgets import (
     QBoxLayout,
     QCheckBox,
@@ -25,7 +25,12 @@ from PySide6.QtWidgets import (
 
 from solar_forge_desktop.calendar import CalendarService, CalendarView, Event, Occurrence, tag_color
 from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, SELECTOR_STYLE, style_calendar
-from solar_forge_desktop.reminders import LEAD_MINUTES, CalendarReminderService
+from solar_forge_desktop.reminder_controls import (
+    lead_selector,
+    system_time_zone,
+    time_zone_selector,
+)
+from solar_forge_desktop.reminders import CalendarReminderService
 from solar_forge_desktop.workers import BackgroundWorker
 
 STYLE = """
@@ -247,25 +252,13 @@ class CalendarPage(QWidget):
         reminder_layout = QVBoxLayout(self.reminder_options)
         reminder_layout.setContentsMargins(0, 0, 0, 0)
         reminder_layout.setSpacing(8)
-        self.reminder_lead = QComboBox()
+        self.reminder_lead = lead_selector("Reminder lead time")
         self.reminder_lead.setObjectName("calendarInput")
-        self.reminder_lead.setAccessibleName("Reminder lead time")
-        lead_labels = ("At event time", "5 minutes before", "15 minutes before",
-                       "30 minutes before", "1 hour before", "1 day before")
-        for minutes, label in zip(LEAD_MINUTES, lead_labels, strict=True):
-            self.reminder_lead.addItem(label, minutes)
         reminder_layout.addWidget(_label("When", "calendarMuted"))
         reminder_layout.addWidget(self.reminder_lead)
-        self.reminder_zone = QComboBox()
+        self.reminder_zone = time_zone_selector("Reminder time zone")
         self.reminder_zone.setObjectName("calendarInput")
-        self.reminder_zone.setAccessibleName("Reminder time zone")
-        zones = sorted(available_timezones() | {"UTC"})
-        self.reminder_zone.addItems(zones)
-        system_zone = bytes(QTimeZone.systemTimeZoneId()).decode() or "UTC"
-        self.default_reminder_zone = system_zone if system_zone in zones else "UTC"
-        self.reminder_zone.setCurrentIndex(
-            self.reminder_zone.findText(self.default_reminder_zone)
-        )
+        self.default_reminder_zone = system_time_zone()
         reminder_layout.addWidget(_label("Event time zone", "calendarMuted"))
         reminder_layout.addWidget(self.reminder_zone)
         reminder_layout.addWidget(_label(

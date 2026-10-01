@@ -1,24 +1,29 @@
-"""Claim due calendar reminders while a signed-in desktop window is open."""
+"""Claim due reminders while a signed-in desktop window is open."""
 
 from datetime import datetime, timezone
 from typing import Callable
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
+from solar_forge_desktop.medicine_reminders import DueMedicineReminder, MedicineReminderService
 from solar_forge_desktop.reminders import CalendarReminderService, DueReminder
 from solar_forge_desktop.workers import BackgroundWorker
 
+DueItem = DueReminder | DueMedicineReminder
 
-class CalendarReminderScheduler(QObject):
+
+class ReminderScheduler(QObject):
     delivered = Signal(object)
     failed = Signal(str)
 
     def __init__(
         self, service: CalendarReminderService, profile_id: int, parent: QObject,
         clock: Callable[[], datetime] | None = None,
+        medicine: MedicineReminderService | None = None,
     ):
         super().__init__(parent)
         self.service = service
+        self.medicine = medicine
         self.profile_id = profile_id
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._busy = False
@@ -37,13 +42,16 @@ class CalendarReminderScheduler(QObject):
         if self._busy:
             return
 
-        def claim() -> tuple[DueReminder, ...]:
+        def claim() -> tuple[DueItem, ...]:
             now = self.clock()
             result = []
-            for reminder in self.service.due(self.profile_id, now):
-                if self.service.mark_delivered(self.profile_id, reminder, now):
-                    result.append(reminder)
-            return tuple(result)
+            for service in (self.service, self.medicine):
+                if service is None:
+                    continue
+                for reminder in service.due(self.profile_id, now):
+                    if service.mark_delivered(self.profile_id, reminder, now):
+                        result.append(reminder)
+            return tuple(sorted(result, key=lambda reminder: reminder.due_at))
 
         self._worker.submit(claim, self._completed)
 
@@ -51,9 +59,9 @@ class CalendarReminderScheduler(QObject):
         self._busy = busy
 
     def _failed(self, error: Exception) -> None:
-        self.failed.emit(f"Calendar reminders could not be checked: {error}")
+        self.failed.emit(f"Reminders could not be checked: {error}")
 
-    def _completed(self, reminders: tuple[DueReminder, ...]) -> None:
+    def _completed(self, reminders: tuple[DueItem, ...]) -> None:
         if reminders:
             self.delivered.emit(reminders)
 
