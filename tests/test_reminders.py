@@ -48,6 +48,8 @@ def test_due_recurring_event_deduplicates_and_honors_household(tmp_path: Path) -
     )
     reminders = CalendarReminderService(storage)
     reminders.set_rule(member, event_id, 30, "America/Chicago")
+    assert reminders.get_rule(member, event_id).lead_minutes == 30
+    assert reminders.get_rule(owner, event_id) is None
     now = datetime(2026, 10, 1, 22, 35, tzinfo=timezone.utc)
     due = reminders.due(member, now)
     assert len(due) == 1
@@ -57,6 +59,11 @@ def test_due_recurring_event_deduplicates_and_honors_household(tmp_path: Path) -
     )
     assert reminders.mark_delivered(member, due[0], now)
     assert reminders.due(member, now) == ()
+    history = reminders.recent_deliveries(member)
+    assert [(entry.event_id, entry.title) for entry in history] == [
+        (event_id, "Family dinner")
+    ]
+    assert reminders.recent_deliveries(owner) == ()
     assert not reminders.mark_delivered(member, due[0], now)
     storage.close()
     storage = Storage(path)
@@ -68,6 +75,8 @@ def test_due_recurring_event_deduplicates_and_honors_household(tmp_path: Path) -
     calendar.save(owner, "Private dinner", None, "Family", datetime(2026, 10, 1, 18),
                   datetime(2026, 10, 1, 19), event_id=event_id, visibility="private")
     assert reminders.due(member, next_day) == ()
+    assert reminders.get_rule(member, event_id) is None
+    assert reminders.recent_deliveries(member) == ()
     storage.close()
 
 
