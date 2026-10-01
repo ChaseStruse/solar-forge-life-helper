@@ -1,5 +1,7 @@
 """Task application operations with explicit profile ownership."""
 
+from datetime import datetime
+
 from sqlalchemy import and_, or_, select
 
 from solar_forge_desktop.household_access import (
@@ -29,7 +31,7 @@ class TaskService:
             ).all()
             items = [
                 TaskItem(row.id, row.title, row.completed, row.created_at, row.completed_at,
-                         row.profile_id, row.visibility)
+                         row.profile_id, row.visibility, row.due_at)
                 for row in rows
             ]
             return (
@@ -37,22 +39,42 @@ class TaskService:
                 [item for item in items if item.completed],
             )
 
-    def add_task(self, profile_id: int, title: str, visibility: str = "private") -> int:
+    def add_task(self, profile_id: int, title: str, visibility: str = "private",
+                 due_at: datetime | None = None) -> int:
         clean_title = title.strip()
         if not clean_title:
             raise ValueError("Task title is required.")
         if len(clean_title) > 200:
             raise ValueError("Task title must be 200 characters or fewer.")
         visibility = require_visibility(visibility)
+        due = self._due_value(due_at)
         with self.storage.sessions.begin() as session:
             require_actor(session, profile_id)
             task = Task(
                 profile_id=profile_id, title=clean_title, completed=False,
-                created_at=utc_now(), visibility=visibility,
+                created_at=utc_now(), visibility=visibility, due_at=due,
             )
             session.add(task)
             session.flush()
             return task.id
+
+    @staticmethod
+    def _due_value(due_at: datetime | None) -> str | None:
+        if due_at is None:
+            return None
+        if not isinstance(due_at, datetime) or due_at.tzinfo is not None:
+            raise ValueError("Task due date must be a local date and time.")
+        return due_at.replace(second=0, microsecond=0).isoformat(timespec="minutes")
+
+    def set_due_at(self, profile_id: int, task_id: int,
+                   due_at: datetime | None) -> None:
+        due = self._due_value(due_at)
+        with self.storage.sessions.begin() as session:
+            require_actor(session, profile_id)
+            task = session.get(Task, task_id)
+            if task is None or task.profile_id != profile_id:
+                raise ValueError("Task not found.")
+            task.due_at = due
 
     def toggle_task(self, profile_id: int, task_id: int) -> None:
         with self.storage.sessions.begin() as session:

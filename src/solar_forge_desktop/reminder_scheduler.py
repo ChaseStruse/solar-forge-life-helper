@@ -5,11 +5,16 @@ from typing import Callable
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
+from solar_forge_desktop.maintenance_reminders import (
+    DueMaintenanceReminder,
+    MaintenanceReminderService,
+)
 from solar_forge_desktop.medicine_reminders import DueMedicineReminder, MedicineReminderService
 from solar_forge_desktop.reminders import CalendarReminderService, DueReminder
+from solar_forge_desktop.task_reminders import DueTaskReminder, TaskReminderService
 from solar_forge_desktop.workers import BackgroundWorker
 
-DueItem = DueReminder | DueMedicineReminder
+DueItem = DueReminder | DueMedicineReminder | DueTaskReminder | DueMaintenanceReminder
 
 
 class ReminderScheduler(QObject):
@@ -20,10 +25,14 @@ class ReminderScheduler(QObject):
         self, service: CalendarReminderService, profile_id: int, parent: QObject,
         clock: Callable[[], datetime] | None = None,
         medicine: MedicineReminderService | None = None,
+        tasks: TaskReminderService | None = None,
+        maintenance: MaintenanceReminderService | None = None,
     ):
         super().__init__(parent)
         self.service = service
         self.medicine = medicine
+        self.tasks = tasks
+        self.maintenance = maintenance
         self.profile_id = profile_id
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._busy = False
@@ -45,7 +54,7 @@ class ReminderScheduler(QObject):
         def claim() -> tuple[DueItem, ...]:
             now = self.clock()
             result = []
-            for service in (self.service, self.medicine):
+            for service in (self.service, self.medicine, self.tasks, self.maintenance):
                 if service is None:
                     continue
                 for reminder in service.due(self.profile_id, now):
