@@ -226,6 +226,7 @@ class TaskWindow(QMainWindow):
         self.settings_store = settings_store
         self.data_directory = data_directory
         self.backup_scheduler = backup_scheduler
+        self.current_theme = "Solar Forge Glow"
         self.setWindowTitle("Solar Forge Life Helper — Dashboard")
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "solar-forge.svg")))
         self.resize(1280, 800)
@@ -504,6 +505,7 @@ class TaskWindow(QMainWindow):
         )
 
     def _set_theme(self, name: str) -> None:
+        self.current_theme = name
         check_icon = (Path(__file__).parent / "assets" / "task-checked.svg").as_posix()
         self.setStyleSheet(_themed_style(STYLE.replace("__CHECK_ICON__", check_icon), name))
         page_styles = (
@@ -728,10 +730,12 @@ class TaskWindow(QMainWindow):
 
     def show_storage_settings(self) -> None:
         if self.settings_store is not None and self.data_directory is not None:
-            StorageSettingsDialog(
+            dialog = StorageSettingsDialog(
                 self.settings_store, self.data_directory, self,
                 scheduler=self.backup_scheduler,
-            ).exec()
+            )
+            dialog.setStyleSheet(_themed_style(dialog.styleSheet(), self.current_theme))
+            dialog.exec()
 
     def _build_tasks(self) -> QWidget:
 

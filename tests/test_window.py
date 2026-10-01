@@ -3,9 +3,31 @@ from pathlib import Path
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QCheckBox, QDialog, QFrame, QLabel, QPushButton
 
+from solar_forge_desktop.configuration import SettingsStore
+from solar_forge_desktop.settings_dialog import StorageSettingsDialog
 from solar_forge_desktop.storage import Storage
 from solar_forge_desktop.tasks import TaskService
 from solar_forge_desktop.window import DeleteTaskDialog, TaskWindow
+
+
+def test_storage_selectors_follow_window_theme(qtbot, monkeypatch, tmp_path: Path) -> None:
+    storage = Storage(tmp_path / "solar-forge.db")
+    window = TaskWindow(
+        TaskService(storage), storage.default_profile_id(), storage.close,
+        settings_store=SettingsStore(tmp_path / "config"), data_directory=tmp_path / "data",
+    )
+    qtbot.addWidget(window)
+    window._set_theme("Ocean Blue")
+    styles = []
+    monkeypatch.setattr(StorageSettingsDialog, "exec", lambda dialog: styles.append(
+        dialog.styleSheet()
+    ))
+
+    window.show_storage_settings()
+
+    assert "#133e68" in styles[0]
+    assert "#8b5cf6" not in styles[0]
+    window.close()
 
 
 def test_task_window_creates_completes_and_deletes(qtbot, monkeypatch, tmp_path: Path) -> None:
