@@ -21,7 +21,7 @@ The dashboard rearranges its cards as you resize the window. Each account sees i
 | Pet Care | Add pet profiles and dated care updates; see matching medication history. |
 | Meal Planner | Plan dinners by week, reuse favorite meals, and build a grocery list from their ingredients. |
 | Home Maintenance | Track household items and recurring due dates; mark work complete. |
-| Calendar | Plan timed or all-day events, switch between month and week views, create recurring series, and share events with the household. |
+| Calendar | Plan timed or all-day events, switch between month and week views, create recurring series, share events with the household, and set reminders for timed events. |
 
 ## Profile and accounts
 
@@ -30,6 +30,12 @@ Open the avatar button to change your display name, bio or motto, avatar color, 
 Use **Create an account** on the sign-in screen to add another local account. Local accounts join the same household. Records stay private unless their owner chooses **Household** for a task or calendar event. The first account in a migrated database may claim an existing Home profile and its tasks; see [Data and migration](data-and-migration.md).
 
 In **Task List**, choose **Only me** or **Household** before adding a task. The owner can change that choice from the task row. Any household member can mark a shared task complete or active again; only its owner can delete it or change who sees it. In **Calendar**, choose **Visible to** when creating or editing an event. Household members can edit shared event details, including a recurring series, but only the owner can change visibility or delete it. Existing tasks and events remain private after an upgrade. Journal, health, budget, and other app records remain private.
+
+## Calendar reminders
+
+For a timed event, select **Remind me**, choose when to be reminded, and confirm the event's time zone. The displayed time zone comes from the desktop; change it if the event's clock time belongs to another zone. A reminder on a recurring event applies to each occurrence. Each signed-in household member can set their own reminder for an event they can see. All-day event reminders are not available yet.
+
+While signed in, the app checks for due reminders every minute and catches up on reminders due in the previous 24 hours. A reminder appears in the top bar and among the five most recent deliveries on the Calendar page. The top-bar alert opens Calendar. The app also requests a desktop notification when the system tray supports messages, but the desktop may suppress it. Delivery history is removed with its associated event or reminder rule. The app does not check reminders while closed or signed out.
 
 ## Your data
 

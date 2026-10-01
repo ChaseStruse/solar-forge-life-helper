@@ -20,7 +20,8 @@ optional pounds, notes, and inline editing. Pet Care keeps profiles and dated
 care records for each animal, with matching Medicine Tracker history. Meal Planner
 organizes dinners by week and builds a grocery list from reusable favorites. Home
 Maintenance tracks recurring household care and due dates. Calendar plans timed
-and all-day events with month/week views and recurring series. The
+and all-day events with month/week views, recurring series, and opt-in reminders
+for timed events while signed in. The
 Dashboard shows only migrated apps;
 summary widgets will appear as their data modules are implemented. The first account
 claims an existing sole Home profile and its tasks. Additional accounts have separate
