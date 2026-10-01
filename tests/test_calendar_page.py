@@ -51,6 +51,7 @@ def test_calendar_reminder_controls_and_history(qtbot, tmp_path: Path) -> None:
     assert page.reminder_enabled.isChecked()
     assert page.reminder_lead.currentData() == 30
     page.reminder_enabled.setChecked(False)
+    qtbot.waitUntil(page.save_button.isEnabled)
     page.scroll.ensureWidgetVisible(page.save_button)
     qtbot.mouseClick(page.save_button, Qt.MouseButton.LeftButton)
     qtbot.waitUntil(lambda: page.status.text() == "Updated Dentist.")

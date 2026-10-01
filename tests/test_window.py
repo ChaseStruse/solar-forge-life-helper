@@ -1,13 +1,32 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QCheckBox, QDialog, QFrame, QLabel, QPushButton
 
 from solar_forge_desktop.configuration import SettingsStore
+from solar_forge_desktop.reminders import DueReminder
 from solar_forge_desktop.settings_dialog import StorageSettingsDialog
 from solar_forge_desktop.storage import Storage
 from solar_forge_desktop.tasks import TaskService
 from solar_forge_desktop.window import DeleteTaskDialog, TaskWindow
+
+
+def test_reminder_banner_opens_calendar(qtbot, tmp_path: Path) -> None:
+    storage = Storage(tmp_path / "solar-forge.db")
+    window = TaskWindow(TaskService(storage), storage.default_profile_id(), storage.close)
+    qtbot.addWidget(window)
+    window.show()
+    due = datetime(2026, 10, 1, 22, 30, tzinfo=timezone.utc)
+    window._on_reminders((DueReminder(1, 1, "Dentist", due, due),))
+    assert window.reminder_button.isVisible()
+    assert "Dentist" in window.reminder_button.text()
+
+    qtbot.mouseClick(window.reminder_button, Qt.MouseButton.LeftButton)
+
+    assert window.pages.currentWidget() is window.calendar_page
+    assert not window.reminder_button.isVisible()
+    window.close()
 
 
 def test_storage_selectors_follow_window_theme(qtbot, monkeypatch, tmp_path: Path) -> None:

@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
+    QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
 )
@@ -60,6 +61,8 @@ from solar_forge_desktop.pets import PetService
 from solar_forge_desktop.profile import ProfileService, ProfileView
 from solar_forge_desktop.profile_page import STYLE as PROFILE_STYLE
 from solar_forge_desktop.profile_page import ProfilePage
+from solar_forge_desktop.reminder_scheduler import CalendarReminderScheduler
+from solar_forge_desktop.reminders import CalendarReminderService, DueReminder
 from solar_forge_desktop.settings_dialog import StorageSettingsDialog
 from solar_forge_desktop.storage import TaskItem
 from solar_forge_desktop.tasks import TaskService
@@ -99,6 +102,8 @@ QLineEdit#appSearch { background: #151027; border: 1px solid #292339;
     border-radius: 23px; padding: 10px 18px; font-size: 14px; }
 QPushButton#themeButton { background: #151027; border: 1px solid #292339;
     border-radius: 22px; padding: 10px 15px; font-weight: 700; }
+QPushButton#reminderButton { background: #302348; color: #f3f4f6;
+    border: 1px solid #8b5cf6; border-radius: 10px; padding: 8px 12px; }
 QPushButton#profileButton { background: #8b5cf6; color: #facc15;
     border: 2px solid #a855f7; border-radius: 22px; padding: 0;
     font-size: 26px; }
@@ -227,6 +232,7 @@ class TaskWindow(QMainWindow):
         self.data_directory = data_directory
         self.backup_scheduler = backup_scheduler
         self.current_theme = "Solar Forge Glow"
+        self._pending_reminder_count = 0
         self.setWindowTitle("Solar Forge Life Helper — Dashboard")
         self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "solar-forge.svg")))
         self.resize(1280, 800)
@@ -238,6 +244,17 @@ class TaskWindow(QMainWindow):
         self._worker = BackgroundWorker(self, "solar-forge-tasks")
         self._worker.busy_changed.connect(self._set_busy)
         self._worker.failed.connect(self._show_error)
+        self.reminder_scheduler = CalendarReminderScheduler(
+            CalendarReminderService(self.service.storage), self.profile_id, self,
+        )
+        self.reminder_scheduler.delivered.connect(self._on_reminders)
+        self.reminder_scheduler.failed.connect(self._on_reminder_error)
+        self._reminder_tray: QSystemTrayIcon | None = None
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self._reminder_tray = QSystemTrayIcon(self.windowIcon(), self)
+            self._reminder_tray.setToolTip("Solar Forge reminders")
+            self._reminder_tray.show()
+        self.reminder_scheduler.start()
         self.show_dashboard()
 
     def _build(self) -> None:
@@ -406,6 +423,14 @@ class TaskWindow(QMainWindow):
             action.triggered.connect(lambda _checked=False, name=theme: self._set_theme(name))
         self.theme_button.setMenu(theme_menu)
         topbar_layout.addWidget(self.theme_button)
+        topbar_layout.addSpacing(14)
+        self.reminder_button = QPushButton("Reminders")
+        self.reminder_button.setObjectName("reminderButton")
+        self.reminder_button.setAccessibleName("Open recent reminders")
+        self.reminder_button.setMaximumWidth(260)
+        self.reminder_button.clicked.connect(self._open_reminders)
+        self.reminder_button.hide()
+        topbar_layout.addWidget(self.reminder_button)
         topbar_layout.addSpacing(14)
         self.profile_button = QPushButton("☾")
         self.profile_button.setObjectName("profileButton")
@@ -724,6 +749,35 @@ class TaskWindow(QMainWindow):
         self._show_page(12, "Calendar")
         self.calendar_page.activate()
 
+    def _open_reminders(self) -> None:
+        self._pending_reminder_count = 0
+        self.reminder_button.hide()
+        self.show_calendar()
+
+    def _on_reminders(self, reminders: tuple[DueReminder, ...]) -> None:
+        self._pending_reminder_count += len(reminders)
+        title = reminders[0].title
+        preview = title[:32] + ("…" if len(title) > 32 else "")
+        count = self._pending_reminder_count
+        self.reminder_button.setText(
+            f"🔔 {preview}" if count == 1 else f"🔔 {count} calendar reminders"
+        )
+        self.reminder_button.setToolTip("\n".join(item.title for item in reminders))
+        self.reminder_button.show()
+        self.calendar_page.refresh_reminder_history()
+        if self._reminder_tray is not None and QSystemTrayIcon.supportsMessages():
+            self._reminder_tray.showMessage(
+                "Calendar reminder", title if len(reminders) == 1 else
+                f"{len(reminders)} calendar reminders are due.",
+                QSystemTrayIcon.MessageIcon.Information,
+            )
+
+    def _on_reminder_error(self, message: str) -> None:
+        self.reminder_button.setText("Reminders unavailable")
+        self.reminder_button.setToolTip(message)
+        self.reminder_button.show()
+        self.calendar_page._show_error(ValueError(message))
+
     def show_profile(self) -> None:
         self._show_page(13, "Solar Forge Profile")
         self.profile_page.activate()
@@ -971,6 +1025,9 @@ class TaskWindow(QMainWindow):
             layout.addWidget(row)
 
     def closeEvent(self, event) -> None:
+        self.reminder_scheduler.shutdown()
+        if self._reminder_tray is not None:
+            self._reminder_tray.hide()
         self._worker.shutdown()
         self.budget_page.shutdown()
         self.journal_page.shutdown()
