@@ -5,12 +5,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QDateTime, QEvent, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QCalendarWidget,
     QCheckBox,
     QComboBox,
+    QDateTimeEdit,
     QDialog,
     QFrame,
     QGridLayout,
@@ -35,6 +36,7 @@ from solar_forge_desktop.budget_page import BudgetPage
 from solar_forge_desktop.calendar import CalendarService
 from solar_forge_desktop.calendar_page import STYLE as CALENDAR_STYLE
 from solar_forge_desktop.calendar_page import CalendarPage
+from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE as PICKER_STYLE
 from solar_forge_desktop.calendar_widgets import SELECTOR_STYLE, style_calendar
 from solar_forge_desktop.calorie import CalorieService
 from solar_forge_desktop.calorie_page import STYLE as CALORIE_STYLE
@@ -49,6 +51,10 @@ from solar_forge_desktop.journal_page import JournalPage
 from solar_forge_desktop.maintenance import MaintenanceService
 from solar_forge_desktop.maintenance_page import STYLE as MAINTENANCE_STYLE
 from solar_forge_desktop.maintenance_page import MaintenancePage
+from solar_forge_desktop.maintenance_reminders import (
+    DueMaintenanceReminder,
+    MaintenanceReminderService,
+)
 from solar_forge_desktop.meal_page import STYLE as MEAL_STYLE
 from solar_forge_desktop.meal_page import MealPage
 from solar_forge_desktop.meals import MealService
@@ -62,10 +68,12 @@ from solar_forge_desktop.pets import PetService
 from solar_forge_desktop.profile import ProfileService, ProfileView
 from solar_forge_desktop.profile_page import STYLE as PROFILE_STYLE
 from solar_forge_desktop.profile_page import ProfilePage
+from solar_forge_desktop.reminder_controls import lead_selector, time_zone_selector
 from solar_forge_desktop.reminder_scheduler import ReminderScheduler
 from solar_forge_desktop.reminders import CalendarReminderService, DueReminder
 from solar_forge_desktop.settings_dialog import StorageSettingsDialog
 from solar_forge_desktop.storage import TaskItem
+from solar_forge_desktop.task_reminders import DueTaskReminder, TaskReminderService
 from solar_forge_desktop.tasks import TaskService
 from solar_forge_desktop.weight import WeightService
 from solar_forge_desktop.weight_page import STYLE as WEIGHT_STYLE
@@ -114,6 +122,12 @@ QLineEdit:focus { border-color: #8b5cf6; }
 QComboBox#taskVisibility { background: #211b39; color: #f3f4f6;
     border: 1px solid #39314e; border-radius: 9px; padding: 8px 12px; }
 QComboBox#taskVisibility QAbstractItemView { background: #211b39; color: #f3f4f6; }
+QComboBox#taskReminderSelect { background: #211b39; color: #f3f4f6;
+    border: 1px solid #39314e; border-radius: 9px; padding: 8px 12px; }
+QComboBox#taskReminderSelect:disabled { color: #a1a1aa; }
+QDateTimeEdit#taskDue { background: #211b39; color: #f3f4f6;
+    border: 1px solid #39314e; border-radius: 9px; padding: 8px 12px; }
+QDateTimeEdit#taskDue:disabled { color: #a1a1aa; }
 QPushButton { background: #292143; color: #f3f4f6; border: 1px solid #483a64;
               border-radius: 10px; padding: 10px 15px; }
 QPushButton:hover { background: #3d315d; }
@@ -135,7 +149,7 @@ QCheckBox::indicator:checked { border: none; background: transparent;
                                image: url("__CHECK_ICON__"); }
 QScrollArea, QScrollArea QWidget, QWidget#taskListContainer {
     border: none; background: transparent; }
-""" + SELECTOR_STYLE
+""" + PICKER_STYLE + SELECTOR_STYLE
 
 THEMES = {
     "Solar Forge Glow": {},
@@ -249,6 +263,8 @@ class TaskWindow(QMainWindow):
         self.reminder_scheduler = ReminderScheduler(
             CalendarReminderService(self.service.storage), self.profile_id, self,
             medicine=MedicineReminderService(self.service.storage),
+            tasks=TaskReminderService(self.service.storage),
+            maintenance=MaintenanceReminderService(self.service.storage),
         )
         self.reminder_scheduler.delivered.connect(self._on_reminders)
         self.reminder_scheduler.failed.connect(self._on_reminder_error)
@@ -757,14 +773,22 @@ class TaskWindow(QMainWindow):
         self.reminder_button.hide()
         if self._latest_reminder_kind == "medicine":
             self.show_medicine()
+        elif self._latest_reminder_kind == "task":
+            self.show_tasks()
+        elif self._latest_reminder_kind == "maintenance":
+            self.show_maintenance()
         else:
             self.show_calendar()
 
-    def _on_reminders(self, reminders: tuple[DueReminder | DueMedicineReminder, ...]) -> None:
+    def _on_reminders(self, reminders: tuple[DueReminder | DueMedicineReminder |
+                                              DueTaskReminder | DueMaintenanceReminder,
+                                              ...]) -> None:
         self._pending_reminder_count += len(reminders)
         title = reminders[0].title
         self._latest_reminder_kind = (
-            "medicine" if isinstance(reminders[0], DueMedicineReminder) else "calendar"
+            "medicine" if isinstance(reminders[0], DueMedicineReminder) else
+            "task" if isinstance(reminders[0], DueTaskReminder) else
+            "maintenance" if isinstance(reminders[0], DueMaintenanceReminder) else "calendar"
         )
         preview = title[:32] + ("…" if len(title) > 32 else "")
         count = self._pending_reminder_count
@@ -777,6 +801,10 @@ class TaskWindow(QMainWindow):
             self.medicine_page.refresh_reminder_history()
         if any(isinstance(item, DueReminder) for item in reminders):
             self.calendar_page.refresh_reminder_history()
+        if any(isinstance(item, DueTaskReminder) for item in reminders):
+            self.refresh()
+        if any(isinstance(item, DueMaintenanceReminder) for item in reminders):
+            self.maintenance_page.refresh()
         if self._reminder_tray is not None and QSystemTrayIcon.supportsMessages():
             self._reminder_tray.showMessage(
                 "Reminder", title if len(reminders) == 1 else
@@ -803,8 +831,11 @@ class TaskWindow(QMainWindow):
             dialog.exec()
 
     def _build_tasks(self) -> QWidget:
-
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         content = QWidget()
+        scroll.setWidget(content)
         body = QVBoxLayout(content)
         body.setContentsMargins(48, 36, 48, 36)
         body.setSpacing(10)
@@ -858,6 +889,42 @@ class TaskWindow(QMainWindow):
         visibility_row.addWidget(self.task_visibility)
         visibility_row.addStretch()
         entry_layout.addLayout(visibility_row)
+        self.task_due_enabled = QCheckBox("Set due date")
+        self.task_due_enabled.setAccessibleName("Set task due date")
+        entry_layout.addWidget(self.task_due_enabled)
+        self.task_due_input = QDateTimeEdit()
+        self.task_due_input.setObjectName("taskDue")
+        self.task_due_input.setAccessibleName("Task due date and time")
+        self.task_due_input.setDisplayFormat("MMM d, yyyy h:mm AP")
+        self.task_due_input.setDateTime(QDateTime.currentDateTime().addDays(1))
+        self.task_due_input.setCalendarPopup(True)
+        style_calendar(self.task_due_input.calendarWidget())
+        self.task_due_input.setEnabled(False)
+        self.task_due_enabled.toggled.connect(self.task_due_input.setEnabled)
+        entry_layout.addWidget(self.task_due_input)
+        self.task_remind_enabled = QCheckBox("Remind me")
+        self.task_remind_enabled.setAccessibleName("Remind me about task")
+        self.task_remind_enabled.setEnabled(False)
+        self.task_due_enabled.toggled.connect(self.task_remind_enabled.setEnabled)
+        self.task_due_enabled.toggled.connect(
+            lambda enabled: self.task_remind_enabled.setChecked(False) if not enabled else None
+        )
+        entry_layout.addWidget(self.task_remind_enabled)
+        self.task_lead = lead_selector("Task reminder lead time")
+        self.task_zone = time_zone_selector("Task reminder time zone")
+        for field in (self.task_lead, self.task_zone):
+            field.setObjectName("taskReminderSelect")
+            field.setEnabled(False)
+            self.task_remind_enabled.toggled.connect(field.setEnabled)
+            entry_layout.addWidget(field)
+        history_title = QLabel("Recent reminders")
+        history_title.setObjectName("section")
+        entry_layout.addWidget(history_title)
+        self.task_reminder_history = QLabel("No reminders delivered yet.")
+        self.task_reminder_history.setObjectName("muted")
+        self.task_reminder_history.setAccessibleName("Recent task reminders")
+        self.task_reminder_history.setWordWrap(True)
+        entry_layout.addWidget(self.task_reminder_history)
         left.addWidget(entry_card)
 
         self.active_card, self.active_heading, self.active_layout = self._make_list("Active Tasks")
@@ -870,7 +937,7 @@ class TaskWindow(QMainWindow):
         columns.addWidget(self.completed_card, 1, Qt.AlignmentFlag.AlignTop)
         body.addLayout(columns)
         body.addStretch()
-        return content
+        return scroll
 
     def _make_list(self, title: str) -> tuple[QFrame, QLabel, QVBoxLayout]:
         card = QFrame()
@@ -903,6 +970,11 @@ class TaskWindow(QMainWindow):
         self.add_button.setEnabled(not busy)
         self.title_input.setEnabled(not busy)
         self.task_visibility.setEnabled(not busy)
+        self.task_due_enabled.setEnabled(not busy)
+        self.task_due_input.setEnabled(not busy and self.task_due_enabled.isChecked())
+        self.task_remind_enabled.setEnabled(not busy and self.task_due_enabled.isChecked())
+        self.task_lead.setEnabled(not busy and self.task_remind_enabled.isChecked())
+        self.task_zone.setEnabled(not busy and self.task_remind_enabled.isChecked())
 
     def _show_error(self, error: Exception) -> None:
         self.status.setText(
@@ -920,13 +992,27 @@ class TaskWindow(QMainWindow):
             self.title_input.setFocus()
             return
         visibility = self.task_visibility.currentData()
+        due = (self.task_due_input.dateTime().toPython()
+               if self.task_due_enabled.isChecked() else None)
+        remind = self.task_remind_enabled.isChecked()
+        lead = self.task_lead.currentData()
+        zone = self.task_zone.currentText()
+
+        def save() -> int:
+            task_id = self.service.add_task(self.profile_id, title, visibility, due)
+            if remind:
+                TaskReminderService(self.service.storage).set_rule(
+                    self.profile_id, task_id, lead, zone,
+                )
+            return task_id
         self._submit(
-            lambda: self.service.add_task(self.profile_id, title, visibility), self._after_add
+            save, self._after_add
         )
 
     def _after_add(self, _result: object) -> None:
         self.title_input.clear()
         self.task_visibility.setCurrentIndex(0)
+        self.task_due_enabled.setChecked(False)
         self.title_input.setFocus()
         self.refresh()
 
@@ -941,6 +1027,67 @@ class TaskWindow(QMainWindow):
             lambda _: self.refresh(),
         )
 
+    def edit_task_reminder(self, task: TaskItem) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Due date and reminder · {task.title}")
+        dialog.setStyleSheet(self.styleSheet())
+        box = QVBoxLayout(dialog)
+        enabled = QCheckBox("Set due date")
+        enabled.setChecked(task.due_at is not None)
+        enabled.setEnabled(task.profile_id == self.profile_id)
+        box.addWidget(enabled)
+        due = QDateTimeEdit()
+        due.setObjectName("taskDue")
+        due.setAccessibleName("Task due date and time")
+        due.setDisplayFormat("MMM d, yyyy h:mm AP")
+        due.setDateTime(QDateTime.fromString(task.due_at, "yyyy-MM-ddTHH:mm")
+                        if task.due_at else QDateTime.currentDateTime().addDays(1))
+        due.setCalendarPopup(True)
+        style_calendar(due.calendarWidget())
+        due.setEnabled(enabled.isChecked())
+        if task.profile_id != self.profile_id:
+            due.setEnabled(False)
+        enabled.toggled.connect(due.setEnabled)
+        box.addWidget(due)
+        rule = TaskReminderService(self.service.storage).get_rule(self.profile_id, task.id)
+        remind = QCheckBox("Remind me")
+        remind.setChecked(rule is not None)
+        remind.setEnabled(enabled.isChecked())
+        enabled.toggled.connect(remind.setEnabled)
+        box.addWidget(remind)
+        lead = lead_selector("Task reminder lead time")
+        zone = time_zone_selector("Task reminder time zone")
+        lead.setObjectName("taskReminderSelect")
+        zone.setObjectName("taskReminderSelect")
+        if rule is not None:
+            lead.setCurrentIndex(lead.findData(rule.lead_minutes))
+            zone.setCurrentIndex(zone.findText(rule.timezone_id))
+        for field in (lead, zone):
+            field.setEnabled(remind.isChecked())
+            remind.toggled.connect(field.setEnabled)
+            box.addWidget(field)
+        save = QPushButton("Save")
+        save.setObjectName("primary")
+        save.clicked.connect(dialog.accept)
+        box.addWidget(save)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        due_value = due.dateTime().toPython() if enabled.isChecked() else None
+        should_remind = enabled.isChecked() and remind.isChecked()
+        lead_value = lead.currentData()
+        zone_value = zone.currentText()
+
+        def update() -> None:
+            if task.profile_id == self.profile_id:
+                self.service.set_due_at(self.profile_id, task.id, due_value)
+            reminders = TaskReminderService(self.service.storage)
+            if should_remind:
+                reminders.set_rule(self.profile_id, task.id, lead_value, zone_value)
+            else:
+                reminders.remove_rule(self.profile_id, task.id)
+
+        self._submit(update, lambda _: self.refresh())
+
     def delete_task(self, task_id: int, title: str) -> None:
         if DeleteTaskDialog(title, self).exec() != QDialog.DialogCode.Accepted:
             return
@@ -950,6 +1097,11 @@ class TaskWindow(QMainWindow):
 
     def _render_tasks(self, result: object) -> None:
         active, completed = result
+        entries = TaskReminderService(self.service.storage).recent_deliveries(self.profile_id)
+        self.task_reminder_history.setText("\n".join(
+            f"{entry.title} · {entry.delivered_at.astimezone():%b %d, %I:%M %p}"
+            for entry in entries
+        ) or "No reminders delivered yet.")
         self._render_list(self.active_layout, self.active_heading, "Active Tasks", active)
         self._render_list(
             self.completed_layout, self.completed_heading, "Completed Tasks", completed
@@ -1004,7 +1156,26 @@ class TaskWindow(QMainWindow):
                 completed_time = QLabel(f"Completed at {completed_at:%I:%M %p}")
                 completed_time.setObjectName("completionTime")
                 text_column.addWidget(completed_time)
+            if task.due_at:
+                due_label = QLabel(
+                    f"Due {datetime.fromisoformat(task.due_at):%b %d, %Y at %I:%M %p}"
+                )
+                due_label.setObjectName("completionTime")
+                text_column.addWidget(due_label)
             row_layout.addLayout(text_column, 1)
+            if not task.completed and task.due_at:
+                rule = TaskReminderService(self.service.storage).get_rule(
+                    self.profile_id, task.id,
+                )
+                if rule is not None:
+                    text_column.addWidget(QLabel("🔔 Reminder on"))
+            if not task.completed:
+                schedule = QPushButton("Due / Reminder")
+                schedule.setAccessibleName(f"Edit due date and reminder for {task.title}")
+                schedule.clicked.connect(
+                    lambda _checked=False, selected=task: self.edit_task_reminder(selected)
+                )
+                row_layout.addWidget(schedule)
             if task.profile_id == self.profile_id:
                 sharing = QPushButton(
                     "Household" if task.visibility == "household" else "Only me"

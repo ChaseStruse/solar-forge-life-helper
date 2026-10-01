@@ -1,10 +1,11 @@
 """Native Home Maintenance schedule and recurring item form."""
 
-from datetime import date
+from datetime import date, time
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, Qt, QTime
 from PySide6.QtWidgets import (
     QBoxLayout,
+    QCheckBox,
     QComboBox,
     QDateEdit,
     QDialog,
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QTextEdit,
+    QTimeEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -27,6 +29,8 @@ from solar_forge_desktop.maintenance import (
     MaintenanceService,
     MaintenanceView,
 )
+from solar_forge_desktop.maintenance_reminders import MaintenanceReminderService
+from solar_forge_desktop.reminder_controls import time_zone_selector
 from solar_forge_desktop.workers import BackgroundWorker
 
 STYLE = """
@@ -50,7 +54,8 @@ QLabel#maintenancePurple { color: #8b5cf6; font-size: 23px; font-weight: 700; }
 QLabel#maintenanceRed { color: #fb7185; font-size: 23px; font-weight: 700; }
 QLabel#maintenanceBlue { color: #38bdf8; font-size: 23px; font-weight: 700; }
 QLineEdit#maintenanceInput, QTextEdit#maintenanceNotes,
-QDateEdit#maintenanceDate, QComboBox#maintenanceSelect { background: #211b30;
+QDateEdit#maintenanceDate, QTimeEdit#maintenanceTime,
+QComboBox#maintenanceSelect { background: #211b30;
     color: #f3f4f6; border: 1px solid #302943; border-radius: 9px;
     padding: 9px 11px; }
 QComboBox#maintenanceSelect QAbstractItemView { background: #211b30;
@@ -103,6 +108,7 @@ class MaintenancePage(QWidget):
     def __init__(self, service: MaintenanceService, profile_id: int):
         super().__init__()
         self.service = service
+        self.reminders = MaintenanceReminderService(service.storage)
         self.profile_id = profile_id
         self._serial = 0
         self.setObjectName("maintenancePage")
@@ -154,6 +160,12 @@ class MaintenancePage(QWidget):
         self._build_form()
         self._build_schedule()
         layout.addLayout(self.columns)
+        history_card, history_box = _card()
+        history_box.addWidget(_label("Recent reminders", "maintenanceHeading"))
+        self.reminder_history = _label("No reminders delivered yet.", "maintenanceMuted")
+        self.reminder_history.setAccessibleName("Recent maintenance reminders")
+        history_box.addWidget(self.reminder_history)
+        layout.addWidget(history_card)
         layout.addStretch()
         self._apply_responsive()
 
@@ -179,6 +191,16 @@ class MaintenancePage(QWidget):
         self.due_input.setCalendarPopup(True)
         style_calendar(self.due_input.calendarWidget())
         box.addWidget(self.due_input)
+        self.remind_enabled = QCheckBox("Remind me")
+        self.remind_enabled.setAccessibleName("Remind me about maintenance")
+        box.addWidget(self.remind_enabled)
+        self.remind_lead = self._lead_selector()
+        self.remind_time = self._time_selector()
+        self.remind_zone = time_zone_selector("Maintenance reminder time zone")
+        for field in (self.remind_lead, self.remind_time, self.remind_zone):
+            field.setEnabled(False)
+            self.remind_enabled.toggled.connect(field.setEnabled)
+            box.addWidget(field)
         box.addWidget(_label("REPEAT EVERY", "maintenanceMuted"))
         repeat = QHBoxLayout()
         self.interval_input = _input("Repeat interval")
@@ -227,6 +249,25 @@ class MaintenancePage(QWidget):
         listing.addStretch()
         self.columns.addLayout(listing, 165)
 
+    @staticmethod
+    def _lead_selector() -> QComboBox:
+        field = QComboBox()
+        field.setObjectName("maintenanceSelect")
+        field.setAccessibleName("Maintenance reminder lead time")
+        for label, days in (("On due date", 0), ("1 day before", 1),
+                            ("7 days before", 7)):
+            field.addItem(label, days)
+        return field
+
+    @staticmethod
+    def _time_selector() -> QTimeEdit:
+        field = QTimeEdit()
+        field.setObjectName("maintenanceTime")
+        field.setAccessibleName("Maintenance reminder time")
+        field.setDisplayFormat("h:mm AP")
+        field.setTime(QTime(9, 0))
+        return field
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._apply_responsive()
@@ -255,6 +296,9 @@ class MaintenancePage(QWidget):
     def _set_busy(self, busy: bool) -> None:
         self.add_button.setEnabled(not busy)
         self.items_container.setEnabled(not busy)
+        self.remind_enabled.setEnabled(not busy)
+        for field in (self.remind_lead, self.remind_time, self.remind_zone):
+            field.setEnabled(not busy and self.remind_enabled.isChecked())
 
     def _show_error(self, error: Exception) -> None:
         self.status.setText(
@@ -287,10 +331,20 @@ class MaintenancePage(QWidget):
         unit = self.unit_input.currentData()
         cost = self.cost_input.text()
         notes = self.notes_input.toPlainText()
+        remind = self.remind_enabled.isChecked()
+        lead = self.remind_lead.currentData()
+        chosen_time = time(self.remind_time.time().hour(), self.remind_time.time().minute())
+        zone = self.remind_zone.currentText()
+
+        def save() -> int:
+            item_id = self.service.add(
+                self.profile_id, name, category, due, interval, unit, cost, notes,
+            )
+            if remind:
+                self.reminders.set_rule(self.profile_id, item_id, lead, chosen_time, zone)
+            return item_id
         self._worker.submit(
-            lambda: self.service.add(
-                self.profile_id, name, category, due, interval, unit, cost, notes
-            ),
+            save,
             lambda _: self._after_add(name.strip()),
         )
 
@@ -299,9 +353,15 @@ class MaintenancePage(QWidget):
         self.interval_input.setText("1")
         self.cost_input.clear()
         self.notes_input.clear()
+        self.remind_enabled.setChecked(False)
         self._show_success(f"Added {name}.")
 
     def _render(self, result: MaintenanceView) -> None:
+        entries = self.reminders.recent_deliveries(self.profile_id)
+        self.reminder_history.setText("\n".join(
+            f"{entry.title} · {entry.delivered_at.astimezone():%b %d, %I:%M %p}"
+            for entry in entries
+        ) or "No reminders delivered yet.")
         self.tracked_value.setText(str(result.total))
         self.overdue_value.setText(str(result.overdue))
         self.soon_value.setText(str(result.due_soon))
@@ -344,8 +404,20 @@ class MaintenancePage(QWidget):
         if item.last_completed_date:
             meta.append(f"Last done {item.last_completed_date:%b %d}")
         box.addWidget(_label("  •  ".join(meta), "maintenanceMuted"))
+        rule = self.reminders.get_rule(self.profile_id, item.id)
+        if rule is not None:
+            box.addWidget(_label(
+                f"🔔 Reminder {rule.lead_days} day(s) before at "
+                f"{rule.time_of_day:%I:%M %p} · {rule.timezone_id}",
+                "maintenanceMuted",
+            ))
         actions = QHBoxLayout()
         actions.addStretch()
+        remind = QPushButton("Reminder")
+        remind.setObjectName("maintenanceSecondary")
+        remind.setAccessibleName(f"Edit reminder for {item.name}")
+        remind.clicked.connect(lambda: self._edit_reminder(item))
+        actions.addWidget(remind)
         complete = QPushButton("Mark Complete")
         complete.setObjectName("maintenancePrimary")
         complete.setAccessibleName(f"Mark {item.name} complete")
@@ -358,6 +430,44 @@ class MaintenancePage(QWidget):
         actions.addWidget(remove)
         box.addLayout(actions)
         return card
+
+    def _edit_reminder(self, item: MaintenanceEntry) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Reminder · {item.name}")
+        dialog.setStyleSheet(STYLE)
+        box = QVBoxLayout(dialog)
+        enabled = QCheckBox("Remind me")
+        rule = self.reminders.get_rule(self.profile_id, item.id)
+        enabled.setChecked(rule is not None)
+        box.addWidget(enabled)
+        lead = self._lead_selector()
+        chosen_time = self._time_selector()
+        zone = time_zone_selector("Maintenance reminder time zone")
+        if rule is not None:
+            lead.setCurrentIndex(lead.findData(rule.lead_days))
+            chosen_time.setTime(QTime(rule.time_of_day.hour, rule.time_of_day.minute))
+            zone.setCurrentIndex(zone.findText(rule.timezone_id))
+        for field in (lead, chosen_time, zone):
+            field.setEnabled(enabled.isChecked())
+            enabled.toggled.connect(field.setEnabled)
+            box.addWidget(field)
+        save = QPushButton("Save")
+        save.setObjectName("maintenancePrimary")
+        save.clicked.connect(dialog.accept)
+        box.addWidget(save)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        should_remind = enabled.isChecked()
+        lead_value = lead.currentData()
+        time_value = time(chosen_time.time().hour(), chosen_time.time().minute())
+        zone_value = zone.currentText()
+        def update() -> None:
+            if should_remind:
+                self.reminders.set_rule(self.profile_id, item.id, lead_value,
+                                        time_value, zone_value)
+            else:
+                self.reminders.remove_rule(self.profile_id, item.id)
+        self._worker.submit(update, lambda _: self.refresh())
 
     def _complete(self, item: MaintenanceEntry) -> None:
         self._worker.submit(

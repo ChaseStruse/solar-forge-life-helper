@@ -47,3 +47,5 @@ Schema version 15 adds a local household and owner/member memberships. Existing 
 Schema version 16 adds opt-in calendar reminder rules and delivery records. The upgrade saves a `pre-reminders-v15` snapshot. It does not create reminders for existing events or change their times. Timed-event reminders can now be set in Calendar and are checked while a person is signed in.
 
 Schema version 17 adds opt-in next-dose reminder rules and delivery records for Medicine Tracker. The upgrade saves a `pre-medicine-reminders-v16` snapshot. Existing medicine logs remain unchanged and do not gain reminders automatically.
+
+Schema version 18 adds an optional local due date and time to tasks, plus separate task and maintenance reminder rules and delivery records. The upgrade saves a `pre-task-maintenance-reminders-v17` snapshot. Existing tasks and maintenance items keep their data and do not gain reminders automatically.

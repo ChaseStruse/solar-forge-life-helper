@@ -8,6 +8,7 @@ from solar_forge_desktop.configuration import SettingsStore
 from solar_forge_desktop.reminders import DueReminder
 from solar_forge_desktop.settings_dialog import StorageSettingsDialog
 from solar_forge_desktop.storage import Storage
+from solar_forge_desktop.task_reminders import TaskReminderService
 from solar_forge_desktop.tasks import TaskService
 from solar_forge_desktop.window import DeleteTaskDialog, TaskWindow
 
@@ -26,6 +27,26 @@ def test_reminder_banner_opens_calendar(qtbot, tmp_path: Path) -> None:
 
     assert window.pages.currentWidget() is window.calendar_page
     assert not window.reminder_button.isVisible()
+    window.close()
+
+
+def test_task_due_date_and_opt_in_reminder_from_form(qtbot, tmp_path: Path) -> None:
+    storage = Storage(tmp_path / "solar-forge.db")
+    profile = storage.default_profile_id()
+    window = TaskWindow(TaskService(storage), profile, storage.close)
+    qtbot.addWidget(window)
+    window.show()
+    window.show_tasks()
+    qtbot.waitUntil(lambda: window.active_heading.text() == "Active Tasks (0)")
+    window.title_input.setText("Pay bill")
+    window.task_due_enabled.setChecked(True)
+    window.task_remind_enabled.setChecked(True)
+    window.task_zone.setCurrentIndex(window.task_zone.findText("UTC"))
+    qtbot.mouseClick(window.add_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: window.active_heading.text() == "Active Tasks (1)")
+    task = TaskService(storage).list_tasks(profile)[0][0]
+    assert task.due_at is not None
+    assert TaskReminderService(storage).get_rule(profile, task.id).timezone_id == "UTC"
     window.close()
 
 
