@@ -1,8 +1,9 @@
 """Native month and week calendar, matching the web event form and board."""
 
 from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo, available_timezones
 
-from PySide6.QtCore import QDate, Qt, QTime
+from PySide6.QtCore import QDate, Qt, QTime, QTimeZone
 from PySide6.QtWidgets import (
     QBoxLayout,
     QCheckBox,
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from solar_forge_desktop.calendar import CalendarService, CalendarView, Event, Occurrence, tag_color
 from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, SELECTOR_STYLE, style_calendar
+from solar_forge_desktop.reminders import LEAD_MINUTES, CalendarReminderService
 from solar_forge_desktop.workers import BackgroundWorker
 
 STYLE = """
@@ -43,6 +45,7 @@ QLabel#calendarHeading { color: #f3f4f6; font-size: 19px; font-weight: 700; }
 QLabel#calendarText { color: #f3f4f6; font-size: 13px; }
 QLabel#calendarMuted, QLabel#calendarWeekday { color: #a1a1aa; font-size: 12px; }
 QLabel#calendarStatus { color: #fb7185; }
+QLabel#calendarReminderHistory { color: #a1a1aa; font-size: 12px; }
 QLabel#calendarDayNumber { color: #f3f4f6; font-size: 14px; font-weight: 700; }
 QLineEdit#calendarInput, QTextEdit#calendarInput, QDateEdit#calendarInput,
 QTimeEdit#calendarInput, QComboBox#calendarInput { background: #211b30;
@@ -96,6 +99,7 @@ class CalendarPage(QWidget):
     def __init__(self, service: CalendarService, profile_id: int):
         super().__init__()
         self.service = service
+        self.reminders = CalendarReminderService(service.storage)
         self.profile_id = profile_id
         self.selected = date.today()
         self.mode = "month"
@@ -236,6 +240,38 @@ class CalendarPage(QWidget):
         form.addWidget(self.until_enabled)
         self.until_input = self._date_input("Repeat until")
         form.addWidget(self.until_input)
+        self.reminder_enabled = QCheckBox("Remind me")
+        self.reminder_enabled.toggled.connect(self._update_fields)
+        form.addWidget(self.reminder_enabled)
+        self.reminder_options = QWidget()
+        reminder_layout = QVBoxLayout(self.reminder_options)
+        reminder_layout.setContentsMargins(0, 0, 0, 0)
+        reminder_layout.setSpacing(8)
+        self.reminder_lead = QComboBox()
+        self.reminder_lead.setObjectName("calendarInput")
+        self.reminder_lead.setAccessibleName("Reminder lead time")
+        lead_labels = ("At event time", "5 minutes before", "15 minutes before",
+                       "30 minutes before", "1 hour before", "1 day before")
+        for minutes, label in zip(LEAD_MINUTES, lead_labels, strict=True):
+            self.reminder_lead.addItem(label, minutes)
+        reminder_layout.addWidget(_label("When", "calendarMuted"))
+        reminder_layout.addWidget(self.reminder_lead)
+        self.reminder_zone = QComboBox()
+        self.reminder_zone.setObjectName("calendarInput")
+        self.reminder_zone.setAccessibleName("Reminder time zone")
+        zones = sorted(available_timezones() | {"UTC"})
+        self.reminder_zone.addItems(zones)
+        system_zone = bytes(QTimeZone.systemTimeZoneId()).decode() or "UTC"
+        self.default_reminder_zone = system_zone if system_zone in zones else "UTC"
+        self.reminder_zone.setCurrentIndex(
+            self.reminder_zone.findText(self.default_reminder_zone)
+        )
+        reminder_layout.addWidget(_label("Event time zone", "calendarMuted"))
+        reminder_layout.addWidget(self.reminder_zone)
+        reminder_layout.addWidget(_label(
+            "Event times use this zone, including daylight-saving changes.", "calendarMuted"
+        ))
+        form.addWidget(self.reminder_options)
         actions = QHBoxLayout()
         self.cancel_button = _button("Cancel", "calendarSecondary", self.clear_form)
         self.cancel_button.hide()
@@ -263,6 +299,15 @@ class CalendarPage(QWidget):
         toolbar_row.addWidget(_button("Today", "calendarSecondary", self.today))
         toolbar_row.addWidget(_button("→", "calendarSecondary", lambda: self.navigate(1)))
         board.addWidget(toolbar)
+        history = QFrame()
+        history.setObjectName("calendarToolbar")
+        history_layout = QVBoxLayout(history)
+        history_layout.setContentsMargins(14, 12, 14, 12)
+        history_layout.addWidget(_label("RECENT REMINDERS", "calendarEyebrow"))
+        self.reminder_history = _label("No reminders delivered yet.", "calendarReminderHistory")
+        self.reminder_history.setAccessibleName("Recent calendar reminders")
+        history_layout.addWidget(self.reminder_history)
+        board.addWidget(history)
         card = QFrame()
         card.setObjectName("calendarGridCard")
         card_layout = QVBoxLayout(card)
@@ -301,9 +346,24 @@ class CalendarPage(QWidget):
         repeating = self.recurrence_input.currentData() != "none"
         self.until_enabled.setVisible(repeating)
         self.until_input.setVisible(repeating and self.until_enabled.isChecked())
+        self.reminder_enabled.setVisible(not all_day)
+        self.reminder_options.setVisible(not all_day and self.reminder_enabled.isChecked())
 
     def activate(self) -> None:
         self.refresh()
+        self.refresh_reminder_history()
+
+    def refresh_reminder_history(self) -> None:
+        try:
+            entries = self.reminders.recent_deliveries(self.profile_id)
+        except ValueError as error:
+            self._show_error(error)
+            return
+        lines = []
+        for entry in entries:
+            delivered = entry.delivered_at.astimezone(ZoneInfo(entry.timezone_id))
+            lines.append(f"{entry.title} · {delivered:%b %d, %I:%M %p} ({entry.timezone_id})")
+        self.reminder_history.setText("\n".join(lines) or "No reminders delivered yet.")
 
     def refresh(self) -> None:
         self._serial += 1
@@ -447,6 +507,11 @@ class CalendarPage(QWidget):
         self.end_time_enabled.setChecked(False)
         self.recurrence_input.setCurrentIndex(0)
         self.until_enabled.setChecked(False)
+        self.reminder_enabled.setChecked(False)
+        self.reminder_lead.setCurrentIndex(0)
+        self.reminder_zone.setCurrentIndex(
+            self.reminder_zone.findText(self.default_reminder_zone)
+        )
         _set_date(self.start_date_input, self.selected)
         self.start_time_input.setTime(QTime(9, 0))
         self.end_time_input.setTime(QTime(10, 0))
@@ -485,6 +550,15 @@ class CalendarPage(QWidget):
         self.until_enabled.setChecked(event.recurrence_until is not None)
         if event.recurrence_until:
             _set_date(self.until_input, event.recurrence_until)
+        rule = self.reminders.get_rule(self.profile_id, event.id)
+        self.reminder_enabled.setChecked(rule is not None)
+        if rule:
+            self.reminder_lead.setCurrentIndex(self.reminder_lead.findData(rule.lead_minutes))
+            zone_index = self.reminder_zone.findText(rule.timezone_id)
+            if zone_index < 0:
+                self.reminder_zone.addItem(rule.timezone_id)
+                zone_index = self.reminder_zone.findText(rule.timezone_id)
+            self.reminder_zone.setCurrentIndex(zone_index)
         self._update_fields()
         self.scroll.ensureWidgetVisible(self.form_card)
 
@@ -512,16 +586,30 @@ class CalendarPage(QWidget):
         event_id = self.edit_id
         visibility = (self.visibility_input.currentData()
                       if self.visibility_input.isEnabled() else None)
+        remind = self.reminder_enabled.isChecked() and not all_day
+        lead = self.reminder_lead.currentData()
+        zone = self.reminder_zone.currentText()
+
+        def save() -> int:
+            saved_id = self.service.save(
+                self.profile_id, title, description, category, start, end, all_day,
+                recurrence, until, event_id, visibility,
+            )
+            if remind:
+                self.reminders.set_rule(self.profile_id, saved_id, lead, zone)
+            elif event_id is not None:
+                self.reminders.remove_rule(self.profile_id, saved_id)
+            return saved_id
+
         self._worker.submit(
-            lambda: self.service.save(self.profile_id, title, description, category,
-                                      start, end, all_day, recurrence, until, event_id,
-                                      visibility),
+            save,
             lambda _: self._after_save(title.strip(), start_day, event_id),
         )
 
     def _after_save(self, title: str, start_day: date, event_id: int | None) -> None:
         self.selected = start_day
         self.clear_form()
+        self.refresh_reminder_history()
         self._success(f"{'Updated' if event_id else 'Added'} {title}.")
 
     def delete_event(self, event: Event) -> None:
@@ -539,6 +627,7 @@ class CalendarPage(QWidget):
     def _after_delete(self, event: Event) -> None:
         if self.edit_id == event.id:
             self.clear_form()
+        self.refresh_reminder_history()
         self._success(f"Removed {event.title}.")
 
     def shutdown(self) -> None:

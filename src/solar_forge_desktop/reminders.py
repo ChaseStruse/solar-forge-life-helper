@@ -42,6 +42,7 @@ class DeliveredReminder:
     title: str
     occurrence_at: datetime
     delivered_at: datetime
+    timezone_id: str
 
 
 def _zone(timezone_id: str) -> ZoneInfo:
@@ -120,7 +121,7 @@ class CalendarReminderService:
         with self.storage.sessions() as session:
             household_profiles = member_ids(session, profile_id)
             rows = session.execute(select(
-                CalendarReminderDelivery, CalendarEvent,
+                CalendarReminderDelivery, CalendarReminder, CalendarEvent,
             ).join(
                 CalendarReminder,
                 CalendarReminderDelivery.reminder_id == CalendarReminder.id,
@@ -136,8 +137,8 @@ class CalendarReminderService:
             return tuple(
                 DeliveredReminder(
                     event.id, event.title, datetime.fromisoformat(delivery.occurrence_at),
-                    datetime.fromisoformat(delivery.delivered_at),
-                ) for delivery, event in rows
+                    datetime.fromisoformat(delivery.delivered_at), rule.timezone_id,
+                ) for delivery, rule, event in rows
             )
 
     def due(self, profile_id: int, now: datetime) -> tuple[DueReminder, ...]:
