@@ -24,6 +24,8 @@ from sqlalchemy import (
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
+SCHEMA_VERSION = 17
+
 
 class Base(DeclarativeBase):
     pass
@@ -557,8 +559,8 @@ class Storage:
                         "Choose an empty data directory."
                     )
                 Base.metadata.create_all(connection)
-                connection.exec_driver_sql("PRAGMA user_version=17")
-            elif version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
+                connection.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
+            elif version not in range(1, SCHEMA_VERSION + 1):
                 raise RuntimeError(f"Unsupported desktop database version: {version}")
             else:
                 names = set(
@@ -929,7 +931,7 @@ def seed_database_from_legacy(source_path: Path, destination_path: Path) -> bool
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
-            if (version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+            if (version not in range(1, SCHEMA_VERSION + 1)
                     or not {"profiles", "tasks"}.issubset(tables)):
                 raise RuntimeError("The previous desktop database has an unsupported schema.")
             source.backup(snapshot)
