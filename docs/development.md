@@ -8,6 +8,9 @@ The desktop app is a Python 3.14/PySide6 project managed with uv. `pyproject.tom
 | --- | --- |
 | `src/solar_forge_desktop/__main__.py` | Starts Qt, locates or imports the database, and switches between sign-in and the workspace. |
 | `src/solar_forge_desktop/window.py` | Main window, dashboard, sidebar, themes, and Task List page. |
+| `src/solar_forge_desktop/calendar_widgets.py` | Shared selector and calendar popup styling, including calendar header colors for each theme. |
+| `src/solar_forge_desktop/reminder_controls.py` | Shared lead-time and time-zone selectors for reminder forms. |
+| `src/solar_forge_desktop/reminder_scheduler.py` | Checks opt-in calendar and medicine reminders while a profile is signed in. |
 | `src/solar_forge_desktop/*_page.py` | Views and interactions for the other modules. |
 | `src/solar_forge_desktop/*.py` | Services and application logic for each module. |
 | `src/solar_forge_desktop/storage.py` | SQLAlchemy models, schema upgrades, and database import. |
@@ -15,6 +18,8 @@ The desktop app is a Python 3.14/PySide6 project managed with uv. `pyproject.tom
 | `compose.yaml`, `Dockerfile.run`, `Dockerfile.test` | Wayland launcher and containerized test setup. |
 
 The pages call services with the signed-in profile ID. Services read and write through `Storage`. A background worker keeps many page operations off the Qt UI thread. Database schema upgrades are keyed by SQLite `PRAGMA user_version`; add a migration when changing persisted tables.
+
+Selector styles are shared through `SELECTOR_STYLE`; pages append it to their page stylesheet. Date picker pages also append `CALENDAR_STYLE` and call `style_calendar()` for each popup. The main window reapplies calendar header colors when the theme changes.
 
 ## Run checks
 

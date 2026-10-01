@@ -12,15 +12,17 @@ five at 1600px, and six at 1920px.
 Easy Budget supports monthly income, expenses, recurrence, filtering, sorting and CSV
 export with exact-cent SQLite storage. Easy Journal supports private entry creation,
 editing, deletion, and a newest-first timeline. Medicine Tracker records doses for
-people and pets with their next scheduled times. Habit Tracker records daily yes/no
+people and pets with their next scheduled times and opt-in next-dose reminders.
+Habit Tracker records daily yes/no
 checks in a weekly grid. Calorie Tracker has daily goals, food logs, and progress
 for the selected date. Weight Tracker has goals, daily weigh-ins, and an offline
 trend chart. Workout Tracker logs daily exercises with sets, reps, bodyweight or
 optional pounds, notes, and inline editing. Pet Care keeps profiles and dated
 care records for each animal, with matching Medicine Tracker history. Meal Planner
 organizes dinners by week and builds a grocery list from reusable favorites. Home
-Maintenance tracks recurring household care and due dates. Calendar plans timed
-and all-day events with month/week views and recurring series. The
+Maintenance tracks recurring household care and due dates with optional reminders. Calendar plans timed
+and all-day events with month/week views, recurring series, and opt-in reminders
+for timed events while signed in. The
 Dashboard shows only migrated apps;
 summary widgets will appear as their data modules are implemented. The first account
 claims an existing sole Home profile and its tasks. Additional accounts have separate

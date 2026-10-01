@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from solar_forge_desktop.calendar_widgets import SELECTOR_STYLE
 from solar_forge_desktop.profile import AVATAR_COLORS, AVATAR_ICONS, ProfileService, ProfileView
 from solar_forge_desktop.workers import BackgroundWorker
 
@@ -39,7 +40,7 @@ QPushButton#profilePrimary { background: #8b5cf6; color: white; border: 0;
     border-radius: 9px; padding: 10px 14px; font-weight: 700; }
 QScrollBar:vertical { background: #151027; width: 10px; }
 QScrollBar::handle:vertical { background: #483a64; border-radius: 5px; min-height: 28px; }
-"""
+""" + SELECTOR_STYLE
 
 
 def _label(text: str, name: str) -> QLabel:

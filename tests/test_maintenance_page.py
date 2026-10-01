@@ -7,9 +7,31 @@ from PySide6.QtCore import QDate, Qt, QTimer
 from PySide6.QtWidgets import QBoxLayout, QDialog, QPushButton
 
 from solar_forge_desktop.maintenance import MaintenanceService
+from solar_forge_desktop.maintenance_reminders import MaintenanceReminderService
 from solar_forge_desktop.storage import Storage
 from solar_forge_desktop.tasks import TaskService
 from solar_forge_desktop.window import TaskWindow
+
+
+def test_maintenance_form_creates_opt_in_reminder(qtbot, tmp_path: Path) -> None:
+    storage = Storage(tmp_path / "solar-forge.db")
+    profile = storage.default_profile_id()
+    window = TaskWindow(TaskService(storage), profile, storage.close)
+    qtbot.addWidget(window)
+    window.show()
+    window.show_maintenance()
+    page = window.maintenance_page
+    qtbot.waitUntil(page.add_button.isEnabled)
+    page.name_input.setText("Change filter")
+    page.remind_enabled.setChecked(True)
+    page.remind_lead.setCurrentIndex(page.remind_lead.findData(1))
+    page.remind_zone.setCurrentIndex(page.remind_zone.findText("UTC"))
+    qtbot.mouseClick(page.add_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: page.tracked_value.text() == "1")
+    item = MaintenanceService(storage).view(profile).items[0]
+    rule = MaintenanceReminderService(storage).get_rule(profile, item.id)
+    assert (rule.lead_days, rule.timezone_id) == (1, "UTC")
+    window.close()
 
 
 def test_maintenance_card_create_complete_delete_restart(qtbot, tmp_path: Path) -> None:

@@ -28,8 +28,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from solar_forge_desktop.budget import BudgetService, BudgetView, ExpenseItem, current_month, format_money
-from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, style_calendar
+from solar_forge_desktop.budget import (
+    BudgetService,
+    BudgetView,
+    ExpenseItem,
+    current_month,
+    format_money,
+)
+from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, SELECTOR_STYLE, style_calendar
 from solar_forge_desktop.workers import BackgroundWorker
 
 STYLE = """
@@ -72,7 +78,7 @@ QTableWidget#budgetTable QHeaderView::section { background: #151027; color: #a1a
     font-size: 11px; font-weight: 700; }
 QTableWidget#budgetTable::item { border-bottom: 1px solid #302943; padding: 6px; }
 
-""" + CALENDAR_STYLE
+""" + CALENDAR_STYLE + SELECTOR_STYLE
 
 
 def _label(text: str, name: str) -> QLabel:

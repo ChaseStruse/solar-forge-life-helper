@@ -52,7 +52,7 @@ def test_v14_upgrade_defaults_existing_tasks_to_private(tmp_path: Path) -> None:
     assert [item.id for item in TaskService(upgraded).list_tasks(owner)[0]] == [task]
     upgraded.close()
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 18
         assert db.execute("SELECT visibility FROM tasks WHERE id=?", (task,)).fetchone() == (
             "private",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []

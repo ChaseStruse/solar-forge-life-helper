@@ -1,15 +1,63 @@
 """Headless Qt interaction coverage for the native Calendar page."""
 
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, Qt, QTime
 from PySide6.QtWidgets import QLabel, QMessageBox, QPushButton
 
 from solar_forge_desktop.calendar import CalendarService
+from solar_forge_desktop.reminders import CalendarReminderService
 from solar_forge_desktop.storage import Storage
 from solar_forge_desktop.tasks import TaskService
 from solar_forge_desktop.window import TaskWindow
+
+
+def test_calendar_reminder_controls_and_history(qtbot, tmp_path: Path) -> None:
+    storage = Storage(tmp_path / "solar-forge.db")
+    profile = storage.default_profile_id()
+    window = TaskWindow(TaskService(storage), profile, storage.close)
+    qtbot.addWidget(window)
+    window.show()
+    window.show_calendar()
+    page = window.calendar_page
+    qtbot.waitUntil(lambda: page.save_button.isEnabled() and bool(page.period_label.text()))
+    page.title_input.setText("Dentist")
+    page.category_input.setText("Health")
+    page.start_date_input.setDate(QDate(2026, 10, 1))
+    page.start_time_input.setTime(QTime(18, 0))
+    page.reminder_enabled.setChecked(True)
+    page.reminder_lead.setCurrentIndex(page.reminder_lead.findData(30))
+    page.reminder_zone.setCurrentIndex(page.reminder_zone.findText("America/Chicago"))
+    page.scroll.ensureWidgetVisible(page.save_button)
+    qtbot.mouseClick(page.save_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: bool(page.status.text()))
+    assert page.status.text() == "Added Dentist."
+    event = next(items[0].event for _, items in CalendarService(storage).view(
+        profile, date(2026, 10, 1)
+    ).days if items)
+    reminders = CalendarReminderService(storage)
+    rule = reminders.get_rule(profile, event.id)
+    assert (rule.lead_minutes, rule.timezone_id) == (30, "America/Chicago")
+    now = datetime(2026, 10, 1, 22, 35, tzinfo=timezone.utc)
+    due = reminders.due(profile, now)
+    assert len(due) == 1
+    assert reminders.mark_delivered(profile, due[0], now)
+    page.refresh_reminder_history()
+    assert "Dentist" in page.reminder_history.text()
+    assert "America/Chicago" in page.reminder_history.text()
+
+    page.edit_event(event.id)
+    assert page.reminder_enabled.isChecked()
+    assert page.reminder_lead.currentData() == 30
+    page.reminder_enabled.setChecked(False)
+    qtbot.waitUntil(page.save_button.isEnabled)
+    page.scroll.ensureWidgetVisible(page.save_button)
+    qtbot.mouseClick(page.save_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: page.status.text() == "Updated Dentist.")
+    assert reminders.get_rule(profile, event.id) is None
+    assert page.reminder_history.text() == "No reminders delivered yet."
+    window.close()
 
 
 def test_calendar_form_views_series_edit_delete_and_restart(qtbot, monkeypatch,

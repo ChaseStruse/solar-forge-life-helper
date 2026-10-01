@@ -11,17 +11,17 @@ The dashboard rearranges its cards as you resize the window. Each account sees i
 | App | What you can do |
 | --- | --- |
 | Easy Budget | Set monthly income, record expenses, review recurring entries, filter or sort transactions, and export CSV. |
-| Task List | Add tasks, mark them complete, share them with the household, and delete tasks you own. |
+| Task List | Add tasks with optional due dates and reminders, mark them complete, share them with the household, and delete tasks you own. |
 | Easy Journal | Write private entries, browse the newest entries first, edit them, and delete them. |
-| Medicine Tracker | Record medicine doses for people or pets and track the next scheduled time. |
+| Medicine Tracker | Record medicine doses for people or pets, track the next scheduled time, and set an optional next-dose reminder. |
 | Habit Tracker | Add habits and mark daily yes/no checks in a weekly grid. |
 | Calorie Tracker | Set a daily calorie goal and log food for a selected date. |
 | Weight Tracker | Set a weight goal, record weigh-ins, and view the trend chart. |
 | Workout Tracker | Log exercises by date with sets, reps, optional weight, and notes; edit or delete a log. |
 | Pet Care | Add pet profiles and dated care updates; see matching medication history. |
 | Meal Planner | Plan dinners by week, reuse favorite meals, and build a grocery list from their ingredients. |
-| Home Maintenance | Track household items and recurring due dates; mark work complete. |
-| Calendar | Plan timed or all-day events, switch between month and week views, create recurring series, and share events with the household. |
+| Home Maintenance | Track recurring due dates, set optional reminders, and mark work complete. |
+| Calendar | Plan timed or all-day events, switch between month and week views, create recurring series, share events with the household, and set reminders for timed events. |
 
 ## Profile and accounts
 
@@ -30,6 +30,18 @@ Open the avatar button to change your display name, bio or motto, avatar color, 
 Use **Create an account** on the sign-in screen to add another local account. Local accounts join the same household. Records stay private unless their owner chooses **Household** for a task or calendar event. The first account in a migrated database may claim an existing Home profile and its tasks; see [Data and migration](data-and-migration.md).
 
 In **Task List**, choose **Only me** or **Household** before adding a task. The owner can change that choice from the task row. Any household member can mark a shared task complete or active again; only its owner can delete it or change who sees it. In **Calendar**, choose **Visible to** when creating or editing an event. Household members can edit shared event details, including a recurring series, but only the owner can change visibility or delete it. Existing tasks and events remain private after an upgrade. Journal, health, budget, and other app records remain private.
+
+## Calendar reminders
+
+For a timed event, select **Remind me**, choose when to be reminded, and confirm the event's time zone. The displayed time zone comes from the desktop; change it if the event's clock time belongs to another zone. A reminder on a recurring event applies to each occurrence. Each signed-in household member can set their own reminder for an event they can see. All-day event reminders are not available yet.
+
+While signed in, the app checks for due reminders every minute and catches up on reminders due in the previous 24 hours. A reminder appears in the top bar and among the five most recent deliveries on the Calendar page. The top-bar alert opens Calendar. The app also requests a desktop notification when the system tray supports messages, but the desktop may suppress it. Delivery history is removed with its associated event or reminder rule. The app does not check reminders while closed or signed out.
+
+In **Medicine Tracker**, select **Remind me about the next dose** when logging a dose. Choose the lead time and the time zone for the next-dose clock time. Each dose record has one next-dose reminder; logging a later dose creates a separate record and can have its own reminder. The five most recent deliveries appear in Medicine Tracker. The same signed-in scheduler, in-app alert, 24-hour catch-up window, and optional desktop notification apply. Medicine logs and their reminders remain private to their account.
+
+In **Task List**, select **Set due date** and optionally **Remind me** before adding a task. Choose a lead time and the time zone in which the due clock time should be read. Use **Due / Reminder** on an active task to change its due date or reminder; household members can set their own reminder on a shared task, while only the owner can change its due date. Completing a task suppresses its reminder. Recent deliveries appear in Task List.
+
+In **Home Maintenance**, select **Remind me** when adding an item, then choose the due-day offset, clock time, and time zone. Use **Reminder** on an existing item to enable, change, or remove it. The rule follows the item's next due date after **Mark Complete** advances the schedule. Maintenance items and their reminders remain private. Recent deliveries appear on the maintenance page. Existing tasks and maintenance items do not gain reminders automatically. Task due times and maintenance reminder times use the selected time zone; reminders only run while signed in, with the same 24-hour catch-up window.
 
 ## Your data
 

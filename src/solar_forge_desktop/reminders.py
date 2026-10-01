@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.sqlite import insert
 
 from solar_forge_desktop.calendar import _event, occurrences
-from solar_forge_desktop.household_access import can_read, require_actor
+from solar_forge_desktop.household_access import can_read, member_ids, require_actor
 from solar_forge_desktop.storage import (
     CalendarEvent,
     CalendarReminder,
@@ -28,6 +28,21 @@ class DueReminder:
     title: str
     occurrence_at: datetime
     due_at: datetime
+
+
+@dataclass(frozen=True)
+class ReminderRule:
+    lead_minutes: int
+    timezone_id: str
+
+
+@dataclass(frozen=True)
+class DeliveredReminder:
+    event_id: int
+    title: str
+    occurrence_at: datetime
+    delivered_at: datetime
+    timezone_id: str
 
 
 def _zone(timezone_id: str) -> ZoneInfo:
@@ -83,6 +98,48 @@ class CalendarReminderService:
             ))
             if rule is not None:
                 session.delete(rule)
+
+    def get_rule(self, profile_id: int, event_id: int) -> ReminderRule | None:
+        with self.storage.sessions() as session:
+            require_actor(session, profile_id)
+            rule = session.scalar(select(CalendarReminder).where(
+                CalendarReminder.profile_id == profile_id,
+                CalendarReminder.event_id == event_id,
+            ))
+            if rule is None:
+                return None
+            event = session.get(CalendarEvent, event_id)
+            if event is None or not can_read(
+                session, profile_id, event.profile_id, event.visibility
+            ):
+                return None
+            return ReminderRule(rule.lead_minutes, rule.timezone_id)
+
+    def recent_deliveries(self, profile_id: int, limit: int = 5) -> tuple[DeliveredReminder, ...]:
+        if not 1 <= limit <= 50:
+            raise ValueError("Choose between 1 and 50 reminders.")
+        with self.storage.sessions() as session:
+            household_profiles = member_ids(session, profile_id)
+            rows = session.execute(select(
+                CalendarReminderDelivery, CalendarReminder, CalendarEvent,
+            ).join(
+                CalendarReminder,
+                CalendarReminderDelivery.reminder_id == CalendarReminder.id,
+            ).join(
+                CalendarEvent, CalendarReminder.event_id == CalendarEvent.id,
+            ).where(
+                CalendarReminder.profile_id == profile_id,
+                or_(CalendarEvent.profile_id == profile_id, and_(
+                    CalendarEvent.visibility == "household",
+                    CalendarEvent.profile_id.in_(household_profiles),
+                )),
+            ).order_by(CalendarReminderDelivery.delivered_at.desc()).limit(limit)).all()
+            return tuple(
+                DeliveredReminder(
+                    event.id, event.title, datetime.fromisoformat(delivery.occurrence_at),
+                    datetime.fromisoformat(delivery.delivered_at), rule.timezone_id,
+                ) for delivery, rule, event in rows
+            )
 
     def due(self, profile_id: int, now: datetime) -> tuple[DueReminder, ...]:
         if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:

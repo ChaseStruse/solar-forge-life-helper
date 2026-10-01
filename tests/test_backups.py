@@ -32,7 +32,7 @@ def test_backup_live_database_has_manifest_and_original_is_untouched(tmp_path: P
     assert document["database_file"] == info.database.name
     assert document["app_version"]
     with sqlite3.connect(info.database) as snapshot:
-        assert snapshot.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert snapshot.execute("PRAGMA user_version").fetchone()[0] == 18
         row = snapshot.execute("SELECT name FROM profiles WHERE id=?", (profile_id,)).fetchone()
         assert row == ("Family",)
     assert storage.profile_name(profile_id) == "Family"

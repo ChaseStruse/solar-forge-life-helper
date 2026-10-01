@@ -49,7 +49,9 @@ class StorageSetupDialog(QDialog):
         layout.addWidget(hint)
         self.data_input = self._folder_row(layout, "Data folder", data_default)
         self.backup_input = self._folder_row(layout, "Backup folder", backup_default)
-        backup_note = QLabel("Automatic backups are not available yet; this saves your choice.")
+        backup_note = QLabel(
+            "Automatic backups use this folder when a schedule is enabled in Settings."
+        )
         backup_note.setObjectName("hint")
         backup_note.setWordWrap(True)
         layout.addWidget(backup_note)
@@ -90,7 +92,7 @@ class StorageSetupDialog(QDialog):
         backup = Path(self.backup_input.text().strip()).expanduser()
         if not data.is_absolute() or not backup.is_absolute():
             raise ValueError("Choose absolute paths for both folders.")
-        if data == backup:
+        if data.resolve() == backup.resolve():
             raise ValueError("Choose a different folder for backups.")
         for path in (data, backup):
             if path.exists() and not path.is_dir():

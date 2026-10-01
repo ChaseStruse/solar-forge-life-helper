@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from solar_forge_desktop.calendar_widgets import SELECTOR_STYLE
 from solar_forge_desktop.meals import FavoriteItem, MealService, MealWeek, PlannedMeal
 from solar_forge_desktop.workers import BackgroundWorker
 
@@ -52,7 +53,7 @@ QCheckBox#mealCheck::indicator:checked { background: #8b5cf6;
 QScrollBar:vertical { background: #151027; width: 10px; }
 QScrollBar::handle:vertical { background: #483a64; border-radius: 5px; min-height: 28px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-"""
+""" + SELECTOR_STYLE
 
 
 def _label(text: str, name: str) -> QLabel:

@@ -28,6 +28,7 @@ from solar_forge_desktop.backups import (
     prune_backups,
     verify_backup,
 )
+from solar_forge_desktop.calendar_widgets import SELECTOR_STYLE
 from solar_forge_desktop.configuration import DATABASE_NAME, AppSettings, SettingsStore
 from solar_forge_desktop.data_move import validate_move_target
 from solar_forge_desktop.location_dialogs import STYLE
@@ -101,7 +102,7 @@ class StorageSettingsDialog(QDialog):
                 border: 1px solid #39314e; border-radius: 8px; padding: 9px; }
             QComboBox QAbstractItemView { background: #211b39; color: #f3f4f6;
                 selection-background-color: #8b5cf6; }
-        """)
+        """ + SELECTOR_STYLE)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 28, 28, 28)
         layout.setSpacing(12)

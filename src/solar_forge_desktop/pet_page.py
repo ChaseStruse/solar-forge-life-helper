@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, style_calendar
+from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, SELECTOR_STYLE, style_calendar
 from solar_forge_desktop.pets import CARE_CATEGORIES, CareItem, PetItem, PetService, PetView
 from solar_forge_desktop.workers import BackgroundWorker
 
@@ -46,7 +46,6 @@ QLineEdit#petInput, QTextEdit#petNotes, QDateEdit#petDate, QComboBox#petCategory
 QLineEdit#petInput:focus, QTextEdit#petNotes:focus,
 QDateEdit#petDate:focus, QComboBox#petCategory:focus { border-color: #8b5cf6; }
 QComboBox#petCategory QAbstractItemView { background: #211b30; color: #f3f4f6; }
-QDateEdit::up-button, QDateEdit::down-button { background: #302943; width: 18px; }
 QPushButton#petPrimary { background: #8b5cf6; color: white; border: none;
     border-radius: 9px; padding: 10px 14px; font-weight: 700; }
 QPushButton#petSecondary, QPushButton#petTab { background: #292143;
@@ -65,7 +64,7 @@ QCheckBox#petCheckbox::indicator:checked { background: #8b5cf6;
 QScrollBar:vertical { background: #151027; width: 10px; }
 QScrollBar::handle:vertical { background: #483a64; border-radius: 5px; min-height: 28px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-""" + CALENDAR_STYLE
+""" + CALENDAR_STYLE + SELECTOR_STYLE
 
 
 def _label(text: str, name: str) -> QLabel:

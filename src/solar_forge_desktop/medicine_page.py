@@ -2,10 +2,12 @@
 
 from datetime import datetime
 from typing import Callable
+from zoneinfo import ZoneInfo
 
 from PySide6.QtCore import QDateTime, Qt
 from PySide6.QtWidgets import (
     QBoxLayout,
+    QCheckBox,
     QDateTimeEdit,
     QDialog,
     QFrame,
@@ -18,8 +20,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, style_calendar
+from solar_forge_desktop.calendar_widgets import CALENDAR_STYLE, SELECTOR_STYLE, style_calendar
 from solar_forge_desktop.medicine import MedicineService, MedicineView
+from solar_forge_desktop.medicine_reminders import MedicineReminderService
+from solar_forge_desktop.reminder_controls import (
+    lead_selector,
+    system_time_zone,
+    time_zone_selector,
+)
 from solar_forge_desktop.storage import MedicineItem
 from solar_forge_desktop.workers import BackgroundWorker
 
@@ -33,15 +41,15 @@ QLabel#medicineValue { color: #f3f4f6; font-size: 23px; font-weight: 700; }
 QLabel#medicineText { color: #f3f4f6; font-size: 14px; }
 QLabel#medicineMuted { color: #a1a1aa; }
 QLabel#medicineStatus { color: #fb7185; }
-QLineEdit#medicineInput, QDateTimeEdit#medicineInput { background: #211b30;
+QLineEdit#medicineInput, QDateTimeEdit#medicineInput, QComboBox#medicineInput {
+    background: #211b30;
     color: #f3f4f6; border: 1px solid #302943; border-radius: 9px; padding: 10px 12px; }
 QLineEdit#medicineInput:focus, QDateTimeEdit#medicineInput:focus { border-color: #8b5cf6; }
-QDateTimeEdit::up-button, QDateTimeEdit::down-button { background: #302943; width: 18px; }
 QPushButton#medicinePrimary { color: white; border: none; border-radius: 10px;
     background: #8b5cf6; padding: 10px 14px; font-weight: 700; }
 QPushButton#medicineDanger { background: #3a1d39; color: #fb7185;
     border: 1px solid #5b3048; border-radius: 9px; padding: 8px 12px; }
-""" + CALENDAR_STYLE
+""" + CALENDAR_STYLE + SELECTOR_STYLE
 
 
 def _label(text: str, name: str) -> QLabel:
@@ -65,6 +73,7 @@ class MedicinePage(QWidget):
     def __init__(self, service: MedicineService, profile_id: int):
         super().__init__()
         self.service = service
+        self.reminders = MedicineReminderService(service.storage)
         self.profile_id = profile_id
         self._serial = 0
         self.setObjectName("medicinePage")
@@ -103,6 +112,12 @@ class MedicinePage(QWidget):
         self.next_value = self._summary(summary, "NEXT DOSE")
         self.people_value = self._summary(summary, "FOR PEOPLE & PETS")
         layout.addLayout(summary)
+        history, history_layout = _card()
+        history_layout.addWidget(_label("RECENT REMINDERS", "medicineMuted"))
+        self.reminder_history = _label("No reminders delivered yet.", "medicineMuted")
+        self.reminder_history.setAccessibleName("Recent medicine reminders")
+        history_layout.addWidget(self.reminder_history)
+        layout.addWidget(history)
 
         self.columns = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.columns.setSpacing(24)
@@ -117,6 +132,22 @@ class MedicinePage(QWidget):
         now = QDateTime.currentDateTime()
         self.given_input = self._date(fields, "GIVEN AT", "Given at", now)
         self.next_input = self._date(fields, "NEXT DOSE AT", "Next dose at", now.addDays(1))
+        self.reminder_enabled = QCheckBox("Remind me about the next dose")
+        self.reminder_enabled.toggled.connect(self._update_reminder_fields)
+        fields.addWidget(self.reminder_enabled)
+        self.reminder_options = QWidget()
+        reminder_fields = QVBoxLayout(self.reminder_options)
+        reminder_fields.setContentsMargins(0, 0, 0, 0)
+        reminder_fields.addWidget(_label("WHEN", "medicineMuted"))
+        self.reminder_lead = lead_selector("Medicine reminder lead time")
+        self.reminder_lead.setObjectName("medicineInput")
+        reminder_fields.addWidget(self.reminder_lead)
+        reminder_fields.addWidget(_label("NEXT DOSE TIME ZONE", "medicineMuted"))
+        self.reminder_zone = time_zone_selector("Medicine reminder time zone")
+        self.reminder_zone.setObjectName("medicineInput")
+        reminder_fields.addWidget(self.reminder_zone)
+        fields.addWidget(self.reminder_options)
+        self._update_reminder_fields()
         self.save_button = QPushButton("Save Dose")
         self.save_button.setObjectName("medicinePrimary")
         self.save_button.setAccessibleName("Save medicine dose")
@@ -185,6 +216,18 @@ class MedicinePage(QWidget):
 
     def activate(self) -> None:
         self.refresh()
+        self.refresh_reminder_history()
+
+    def _update_reminder_fields(self, *_args) -> None:
+        self.reminder_options.setVisible(self.reminder_enabled.isChecked())
+
+    def refresh_reminder_history(self) -> None:
+        entries = self.reminders.recent_deliveries(self.profile_id)
+        lines = []
+        for entry in entries:
+            delivered = entry.delivered_at.astimezone(ZoneInfo(entry.timezone_id))
+            lines.append(f"{entry.title} · {delivered:%b %d, %I:%M %p} ({entry.timezone_id})")
+        self.reminder_history.setText("\n".join(lines) or "No reminders delivered yet.")
 
     def _run(self, action: Callable[[], object], done: Callable[[object], None]) -> None:
         self._worker.submit(action, done)
@@ -259,8 +302,18 @@ class MedicinePage(QWidget):
         dosage = self.dosage_input.text()
         given = self.given_input.dateTime().toString("yyyy-MM-ddTHH:mm")
         due = self.next_input.dateTime().toString("yyyy-MM-ddTHH:mm")
+        remind = self.reminder_enabled.isChecked()
+        lead = self.reminder_lead.currentData()
+        zone = self.reminder_zone.currentText()
+
+        def save() -> int:
+            log_id = self.service.add_log(self.profile_id, recipient, name, dosage, given, due)
+            if remind:
+                self.reminders.set_rule(self.profile_id, log_id, lead, zone)
+            return log_id
+
         self._run(
-            lambda: self.service.add_log(self.profile_id, recipient, name, dosage, given, due),
+            save,
             lambda _: self._after_add(),
         )
 
@@ -271,6 +324,9 @@ class MedicinePage(QWidget):
         now = QDateTime.currentDateTime()
         self.given_input.setDateTime(now)
         self.next_input.setDateTime(now.addDays(1))
+        self.reminder_enabled.setChecked(False)
+        self.reminder_lead.setCurrentIndex(0)
+        self.reminder_zone.setCurrentIndex(self.reminder_zone.findText(system_time_zone()))
         self.status.setText("Medicine dose saved.")
         self.status.setStyleSheet("color: #10b981;")
         self.refresh()
@@ -314,6 +370,7 @@ class MedicinePage(QWidget):
     def _after_delete(self) -> None:
         self.status.setText("Medicine dose deleted.")
         self.status.setStyleSheet("color: #10b981;")
+        self.refresh_reminder_history()
         self.refresh()
 
     def shutdown(self) -> None:

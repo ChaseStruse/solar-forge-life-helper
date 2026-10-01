@@ -30,7 +30,11 @@ def test_budget_navigation_and_persistent_entry(qtbot, tmp_path: Path) -> None:
     assert window.theme_button.menu().actions()[0].text() == "Solar Forge Glow"
     window.theme_button.menu().actions()[2].trigger()
     assert "#06172c" in window.styleSheet()
+    calendar = page.month_picker.calendarWidget()
+    assert calendar.headerTextFormat().background().color().name() == "#133e68"
+    assert "#133e68" in page.styleSheet()
     window.theme_button.menu().actions()[0].trigger()
+    assert calendar.headerTextFormat().background().color().name() == "#211b30"
     assert page.income_value.text() == "$0.00"
     assert page.empty.isVisible()
     assert page.income_value.mapToGlobal(page.income_value.rect().topLeft()).x() < (

@@ -1,15 +1,45 @@
 """Qt interactions for the desktop Medicine Tracker."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from PySide6.QtCore import QDateTime, Qt, QTimer
 from PySide6.QtWidgets import QBoxLayout, QDialog, QPushButton
 
 from solar_forge_desktop.medicine import MedicineService
+from solar_forge_desktop.medicine_reminders import MedicineReminderService
 from solar_forge_desktop.storage import Storage
 from solar_forge_desktop.tasks import TaskService
 from solar_forge_desktop.window import TaskWindow
+
+
+def test_medicine_reminder_controls_and_history(qtbot, tmp_path: Path) -> None:
+    storage = Storage(tmp_path / "solar-forge.db")
+    profile = storage.default_profile_id()
+    window = TaskWindow(TaskService(storage), profile, storage.close)
+    qtbot.addWidget(window)
+    window.show()
+    window.show_medicine()
+    page = window.medicine_page
+    qtbot.waitUntil(page.save_button.isEnabled)
+    page.recipient_input.setText("Max")
+    page.name_input.setText("Antibiotic")
+    page.dosage_input.setText("10 mg")
+    page.given_input.setDateTime(QDateTime.fromString("2026-10-01T08:00", "yyyy-MM-ddTHH:mm"))
+    page.next_input.setDateTime(QDateTime.fromString("2026-10-01T18:00", "yyyy-MM-ddTHH:mm"))
+    page.reminder_enabled.setChecked(True)
+    page.reminder_lead.setCurrentIndex(page.reminder_lead.findData(30))
+    page.reminder_zone.setCurrentIndex(page.reminder_zone.findText("America/Chicago"))
+    page.save_button.click()
+    qtbot.waitUntil(lambda: page.status.text() == "Medicine dose saved.")
+    log_id = MedicineService(storage).view(profile).logs[0].id
+    reminders = MedicineReminderService(storage)
+    assert reminders.get_rule(profile, log_id).timezone_id == "America/Chicago"
+    now = datetime(2026, 10, 1, 22, 35, tzinfo=timezone.utc)
+    assert reminders.mark_delivered(profile, reminders.due(profile, now)[0], now)
+    page.refresh_reminder_history()
+    assert "Antibiotic for Max" in page.reminder_history.text()
+    window.close()
 
 
 def test_medicine_navigation_create_delete_and_restart(qtbot, tmp_path: Path) -> None:

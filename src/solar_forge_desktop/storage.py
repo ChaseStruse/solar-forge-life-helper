@@ -24,6 +24,8 @@ from sqlalchemy import (
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
+SCHEMA_VERSION = 18
+
 
 class Base(DeclarativeBase):
     pass
@@ -142,6 +144,7 @@ class Task(Base):
     completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
     completed_at: Mapped[str | None] = mapped_column(String(40))
+    due_at: Mapped[str | None] = mapped_column(String(16))
     visibility: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     profile: Mapped[Profile] = relationship(back_populates="tasks")
 
@@ -204,6 +207,33 @@ class MedicineLog(Base):
     next_due_at: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     created_at: Mapped[str] = mapped_column(String(40), nullable=False)
     profile: Mapped[Profile] = relationship(back_populates="medicine_logs")
+
+
+class MedicineReminder(Base):
+    __tablename__ = "medicine_reminders"
+    __table_args__ = (UniqueConstraint("profile_id", "log_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    log_id: Mapped[int] = mapped_column(
+        ForeignKey("medicine_logs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    lead_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    timezone_id: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
+class MedicineReminderDelivery(Base):
+    __tablename__ = "medicine_reminder_deliveries"
+    __table_args__ = (UniqueConstraint("reminder_id", "next_due_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reminder_id: Mapped[int] = mapped_column(
+        ForeignKey("medicine_reminders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    next_due_at: Mapped[str] = mapped_column(String(16), nullable=False)
+    delivered_at: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
 class Habit(Base):
@@ -388,6 +418,61 @@ class MaintenanceItem(Base):
     profile: Mapped[Profile] = relationship(back_populates="maintenance_items")
 
 
+class TaskReminder(Base):
+    __tablename__ = "task_reminders"
+    __table_args__ = (UniqueConstraint("profile_id", "task_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    lead_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    timezone_id: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
+class TaskReminderDelivery(Base):
+    __tablename__ = "task_reminder_deliveries"
+    __table_args__ = (UniqueConstraint("reminder_id", "due_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reminder_id: Mapped[int] = mapped_column(
+        ForeignKey("task_reminders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    due_at: Mapped[str] = mapped_column(String(16), nullable=False)
+    delivered_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class MaintenanceReminder(Base):
+    __tablename__ = "maintenance_reminders"
+    __table_args__ = (UniqueConstraint("profile_id", "item_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("maintenance_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    lead_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    time_of_day: Mapped[str] = mapped_column(String(5), nullable=False)
+    timezone_id: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
+class MaintenanceReminderDelivery(Base):
+    __tablename__ = "maintenance_reminder_deliveries"
+    __table_args__ = (UniqueConstraint("reminder_id", "next_due_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reminder_id: Mapped[int] = mapped_column(
+        ForeignKey("maintenance_reminders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    next_due_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    delivered_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
 class CalendarEvent(Base):
     __tablename__ = "calendar_events"
 
@@ -444,6 +529,7 @@ class TaskItem:
     completed_at: str | None
     profile_id: int | None = None
     visibility: str = "private"
+    due_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -530,8 +616,8 @@ class Storage:
                         "Choose an empty data directory."
                     )
                 Base.metadata.create_all(connection)
-                connection.exec_driver_sql("PRAGMA user_version=16")
-            elif version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16):
+                connection.exec_driver_sql(f"PRAGMA user_version={SCHEMA_VERSION}")
+            elif version not in range(1, SCHEMA_VERSION + 1):
                 raise RuntimeError(f"Unsupported desktop database version: {version}")
             else:
                 names = set(
@@ -650,10 +736,30 @@ class Storage:
                     raise RuntimeError(f"Desktop database is missing {table} visibility.")
         if version == 15:
             self._upgrade_v15()
+            version = 16
         with self.engine.connect() as connection:
             tables = set(connection.execute(text(tables_sql)).scalars())
             if not {"calendar_reminders", "calendar_reminder_deliveries"}.issubset(tables):
                 raise RuntimeError("Desktop database is missing reminder tables.")
+        if version == 16:
+            self._upgrade_v16()
+            version = 17
+        with self.engine.connect() as connection:
+            tables = set(connection.execute(text(tables_sql)).scalars())
+            if not {"medicine_reminders", "medicine_reminder_deliveries"}.issubset(tables):
+                raise RuntimeError("Desktop database is missing medicine reminder tables.")
+        if version == 17:
+            self._upgrade_v17()
+        with self.engine.connect() as connection:
+            tables = set(connection.execute(text(tables_sql)).scalars())
+            if not {"task_reminders", "task_reminder_deliveries",
+                    "maintenance_reminders", "maintenance_reminder_deliveries"}.issubset(tables):
+                raise RuntimeError(
+                    "Desktop database is missing task or maintenance reminder tables."
+                )
+            columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(tasks)")}
+            if "due_at" not in columns:
+                raise RuntimeError("Desktop database is missing task due dates.")
         with self.sessions.begin() as session:
             if session.scalar(select(Profile.id).limit(1)) is None:
                 session.add(Profile(name="Home"))
@@ -817,6 +923,30 @@ class Storage:
             CalendarReminderDelivery.__table__.create(connection, checkfirst=True)
             connection.exec_driver_sql("PRAGMA user_version=16")
 
+    def _upgrade_v16(self) -> None:
+        """Add opt-in next-dose reminders without changing any medicine logs."""
+        self._snapshot_before_upgrade("pre-medicine-reminders-v16")
+        with self.engine.begin() as connection:
+            if connection.exec_driver_sql("PRAGMA user_version").scalar_one() != 16:
+                return
+            MedicineReminder.__table__.create(connection, checkfirst=True)
+            MedicineReminderDelivery.__table__.create(connection, checkfirst=True)
+            connection.exec_driver_sql("PRAGMA user_version=17")
+
+    def _upgrade_v17(self) -> None:
+        """Preserve existing tasks and schedules before adding opt-in reminder data."""
+        self._snapshot_before_upgrade("pre-task-maintenance-reminders-v17")
+        with self.engine.begin() as connection:
+            if connection.exec_driver_sql("PRAGMA user_version").scalar_one() != 17:
+                return
+            columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(tasks)")}
+            if "due_at" not in columns:
+                connection.exec_driver_sql("ALTER TABLE tasks ADD COLUMN due_at VARCHAR(16)")
+            for table in (TaskReminder.__table__, TaskReminderDelivery.__table__,
+                          MaintenanceReminder.__table__, MaintenanceReminderDelivery.__table__):
+                table.create(connection, checkfirst=True)
+            connection.exec_driver_sql("PRAGMA user_version=18")
+
     def _snapshot_before_upgrade(self, label: str) -> None:
         snapshot_path = self.path.with_name(self.path.name + "." + label)
         if not snapshot_path.exists():
@@ -885,7 +1015,7 @@ def seed_database_from_legacy(source_path: Path, destination_path: Path) -> bool
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
-            if (version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+            if (version not in range(1, SCHEMA_VERSION + 1)
                     or not {"profiles", "tasks"}.issubset(tables)):
                 raise RuntimeError("The previous desktop database has an unsupported schema.")
             source.backup(snapshot)
