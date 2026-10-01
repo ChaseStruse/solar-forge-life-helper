@@ -135,6 +135,8 @@ Phase 2 now has manual verified backups, manifests, optional daily or weekly run
 
 **Reminder time policy:** Calendar events currently store local wall times. A reminder rule stores an IANA time-zone ID selected in the UI, and each occurrence is interpreted in that zone. The first occurrence of a repeated clock time is used when daylight saving ends; a clock time skipped when daylight saving begins is skipped. Lead time is subtracted from the resulting UTC instant, so a 30-minute lead remains 30 actual minutes across an offset change. The delivery ledger keys each event occurrence per recipient and survives restart. The scheduler considers missed triggers from the previous 24 hours while a user is signed in. All-day events, quiet hours, reminders for other modules, and delivery while the app is closed remain later Phase 4 work.
 
+**Next reminder inputs:** Tasks currently have no due date, so task reminders need a due-date field and migration before they can be scheduled. Medicine logs have a local next-dose time; their reminders need an explicit time-zone choice. Maintenance items have a date but no clock time; their reminder controls need a time-of-day choice. Add each rule and delivery ledger without enabling reminders for existing records automatically.
+
 ## Decisions to validate with users
 
 - Which items should a family share by default, if any? This plan starts with everything private and explicit sharing.
