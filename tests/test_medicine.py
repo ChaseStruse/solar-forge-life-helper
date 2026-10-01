@@ -10,6 +10,33 @@ from solar_forge_desktop.medicine import MedicineService
 from solar_forge_desktop.storage import Storage
 
 
+def test_v16_upgrade_preserves_medicine_logs(tmp_path: Path) -> None:
+    path = tmp_path / "family.db"
+    storage = Storage(path)
+    profile = storage.default_profile_id()
+    log_id = MedicineService(storage).add_log(
+        profile, "Me", "Vitamins", "1 tablet", "2026-10-01T08:00", "2026-10-01T20:00"
+    )
+    storage.close()
+    with closing(sqlite3.connect(path)) as db:
+        db.execute("DROP TABLE medicine_reminder_deliveries")
+        db.execute("DROP TABLE medicine_reminders")
+        db.execute("PRAGMA user_version=16")
+        db.commit()
+
+    upgraded = Storage(path)
+    assert MedicineService(upgraded).view(profile).logs[0].id == log_id
+    upgraded.close()
+    with closing(sqlite3.connect(path)) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 17
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+    with closing(sqlite3.connect(
+        path.with_name("family.db.pre-medicine-reminders-v16")
+    )) as snapshot:
+        assert snapshot.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert snapshot.execute("SELECT COUNT(*) FROM medicine_logs").fetchone()[0] == 1
+
+
 def test_medicine_doses_order_isolation_delete_and_restart(tmp_path: Path) -> None:
     path = tmp_path / "medicine.db"
     storage = Storage(path)
@@ -107,7 +134,7 @@ def test_v4_upgrade_snapshots_before_medicine_schema(tmp_path: Path) -> None:
             row[0] for row in snapshot.execute("SELECT name FROM sqlite_master")
         }
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 17
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
 
 

@@ -30,7 +30,7 @@ def test_v15_upgrade_adds_reminders_without_changing_events(tmp_path: Path) -> N
     assert CalendarService(upgraded).get(owner, event_id).title == "Keep this"
     upgraded.close()
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 17
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
     with closing(sqlite3.connect(path.with_name("family.db.pre-reminders-v15"))) as snapshot:
         assert snapshot.execute("PRAGMA user_version").fetchone()[0] == 15

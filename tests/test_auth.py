@@ -91,7 +91,7 @@ def test_v1_upgrade_keeps_snapshot_and_existing_tasks(tmp_path: Path) -> None:
         assert db.execute("SELECT title FROM tasks").fetchone()[0] == "Old task"
         assert "username" not in [r[1] for r in db.execute("PRAGMA table_info(profiles)")]
     with closing(sqlite3.connect(path)) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 16
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 17
     with closing(sqlite3.connect(path.with_name("old.db.pre-budget-v2"))) as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == 2
 

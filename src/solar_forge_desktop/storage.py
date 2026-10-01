@@ -206,6 +206,33 @@ class MedicineLog(Base):
     profile: Mapped[Profile] = relationship(back_populates="medicine_logs")
 
 
+class MedicineReminder(Base):
+    __tablename__ = "medicine_reminders"
+    __table_args__ = (UniqueConstraint("profile_id", "log_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    log_id: Mapped[int] = mapped_column(
+        ForeignKey("medicine_logs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    lead_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    timezone_id: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
+class MedicineReminderDelivery(Base):
+    __tablename__ = "medicine_reminder_deliveries"
+    __table_args__ = (UniqueConstraint("reminder_id", "next_due_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reminder_id: Mapped[int] = mapped_column(
+        ForeignKey("medicine_reminders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    next_due_at: Mapped[str] = mapped_column(String(16), nullable=False)
+    delivered_at: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
 class Habit(Base):
     __tablename__ = "habits"
 
@@ -530,8 +557,8 @@ class Storage:
                         "Choose an empty data directory."
                     )
                 Base.metadata.create_all(connection)
-                connection.exec_driver_sql("PRAGMA user_version=16")
-            elif version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16):
+                connection.exec_driver_sql("PRAGMA user_version=17")
+            elif version not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
                 raise RuntimeError(f"Unsupported desktop database version: {version}")
             else:
                 names = set(
@@ -650,10 +677,17 @@ class Storage:
                     raise RuntimeError(f"Desktop database is missing {table} visibility.")
         if version == 15:
             self._upgrade_v15()
+            version = 16
         with self.engine.connect() as connection:
             tables = set(connection.execute(text(tables_sql)).scalars())
             if not {"calendar_reminders", "calendar_reminder_deliveries"}.issubset(tables):
                 raise RuntimeError("Desktop database is missing reminder tables.")
+        if version == 16:
+            self._upgrade_v16()
+        with self.engine.connect() as connection:
+            tables = set(connection.execute(text(tables_sql)).scalars())
+            if not {"medicine_reminders", "medicine_reminder_deliveries"}.issubset(tables):
+                raise RuntimeError("Desktop database is missing medicine reminder tables.")
         with self.sessions.begin() as session:
             if session.scalar(select(Profile.id).limit(1)) is None:
                 session.add(Profile(name="Home"))
@@ -816,6 +850,16 @@ class Storage:
             CalendarReminder.__table__.create(connection, checkfirst=True)
             CalendarReminderDelivery.__table__.create(connection, checkfirst=True)
             connection.exec_driver_sql("PRAGMA user_version=16")
+
+    def _upgrade_v16(self) -> None:
+        """Add opt-in next-dose reminders without changing any medicine logs."""
+        self._snapshot_before_upgrade("pre-medicine-reminders-v16")
+        with self.engine.begin() as connection:
+            if connection.exec_driver_sql("PRAGMA user_version").scalar_one() != 16:
+                return
+            MedicineReminder.__table__.create(connection, checkfirst=True)
+            MedicineReminderDelivery.__table__.create(connection, checkfirst=True)
+            connection.exec_driver_sql("PRAGMA user_version=17")
 
     def _snapshot_before_upgrade(self, label: str) -> None:
         snapshot_path = self.path.with_name(self.path.name + "." + label)
