@@ -1,16 +1,20 @@
 """Due calendar reminders are claimed once and surfaced to the signed-in window."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 
 from PySide6.QtCore import QObject
 
 from solar_forge_desktop.calendar import CalendarService
+from solar_forge_desktop.maintenance import MaintenanceService
+from solar_forge_desktop.maintenance_reminders import MaintenanceReminderService
 from solar_forge_desktop.medicine import MedicineService
 from solar_forge_desktop.medicine_reminders import MedicineReminderService
 from solar_forge_desktop.reminder_scheduler import ReminderScheduler
 from solar_forge_desktop.reminders import CalendarReminderService
 from solar_forge_desktop.storage import Storage
+from solar_forge_desktop.task_reminders import TaskReminderService
+from solar_forge_desktop.tasks import TaskService
 
 
 def test_scheduler_claims_due_reminder_once(qtbot, tmp_path: Path) -> None:
@@ -61,5 +65,38 @@ def test_scheduler_claims_medicine_reminder(qtbot, tmp_path: Path) -> None:
     qtbot.waitUntil(lambda: len(received) == 1)
     assert received[0][0].title == "Antibiotic for Max"
     assert len(medicine.recent_deliveries(profile)) == 1
+    scheduler.shutdown()
+    storage.close()
+
+
+def test_scheduler_claims_task_and_maintenance_once(qtbot, tmp_path: Path) -> None:
+    storage = Storage(tmp_path / "solar-forge.db")
+    profile = storage.default_profile_id()
+    task_id = TaskService(storage).add_task(
+        profile, "Pay bill", due_at=datetime(2026, 10, 1, 18),
+    )
+    item_id = MaintenanceService(storage).add(
+        profile, "Replace filter", "General", date(2026, 10, 2), 1, "months",
+    )
+    tasks = TaskReminderService(storage)
+    maintenance = MaintenanceReminderService(storage)
+    tasks.set_rule(profile, task_id, 30, "America/Chicago")
+    maintenance.set_rule(profile, item_id, 1, time(9), "America/Chicago")
+    parent = QObject()
+    scheduler = ReminderScheduler(
+        CalendarReminderService(storage), profile, parent,
+        clock=lambda: datetime(2026, 10, 1, 22, 35, tzinfo=timezone.utc),
+        tasks=tasks, maintenance=maintenance,
+    )
+    received = []
+    scheduler.delivered.connect(received.append)
+    scheduler.start()
+    qtbot.waitUntil(lambda: len(received) == 1)
+    assert {entry.title for entry in received[0]} == {"Pay bill", "Replace filter"}
+    assert len(tasks.recent_deliveries(profile)) == 1
+    assert len(maintenance.recent_deliveries(profile)) == 1
+    scheduler.check()
+    qtbot.waitUntil(lambda: not scheduler._busy)
+    assert len(received) == 1
     scheduler.shutdown()
     storage.close()
