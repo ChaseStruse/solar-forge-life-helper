@@ -29,7 +29,7 @@ def validate_endpoint(value: str) -> str:
         port = parsed.port
     except ValueError as exc:
         raise ValueError("Use a loopback address such as http://127.0.0.1:11434.") from exc
-    if (parsed.scheme != "http" or not address.is_loopback or port is None
+    if (parsed.scheme != "http" or not address.is_loopback or port is None or port == 0
             or parsed.username is not None or parsed.password is not None
             or parsed.path not in ("", "/") or parsed.query or parsed.fragment):
         raise ValueError("Use only a local HTTP address and port, with no path or credentials.")
@@ -44,13 +44,13 @@ def validate_settings(settings: AssistantSettings) -> AssistantSettings:
     model = settings.model.strip() if isinstance(settings.model, str) else ""
     if len(model) > 120 or any(ord(char) < 32 for char in model):
         raise ValueError("Enter a valid local model name.")
+    for field in (settings.enabled, settings.include_tasks, settings.include_calendar):
+        if not isinstance(field, bool):
+            raise ValueError("Assistant permissions must be on or off.")
     if settings.enabled and not model:
         raise ValueError("Choose a model before enabling the assistant.")
     if settings.enabled and not (settings.include_tasks or settings.include_calendar):
         raise ValueError("Choose at least one record category for the assistant.")
-    for field in (settings.enabled, settings.include_tasks, settings.include_calendar):
-        if not isinstance(field, bool):
-            raise ValueError("Assistant permissions must be on or off.")
     return AssistantSettings(settings.enabled, settings.provider, endpoint, model,
                              settings.include_tasks, settings.include_calendar)
 

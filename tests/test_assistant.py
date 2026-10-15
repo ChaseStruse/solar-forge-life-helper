@@ -11,6 +11,7 @@ from solar_forge_desktop.assistant_settings import (
     validate_endpoint,
 )
 from solar_forge_desktop.calendar import CalendarService
+from solar_forge_desktop.local_models import LocalModelClient
 from solar_forge_desktop.storage import Storage
 from solar_forge_desktop.tasks import TaskService
 
@@ -19,7 +20,7 @@ from solar_forge_desktop.tasks import TaskService
     "https://127.0.0.1:11434", "http://example.com:11434",
     "http://192.168.1.2:11434", "http://127.0.0.1:11434/other",
     "http://user:pass@127.0.0.1:11434", "http://127.0.0.1:11434?next=elsewhere",
-    "http://127.0.0.1:11434#part", "http://127.0.0.1",
+    "http://127.0.0.1:11434#part", "http://127.0.0.1", "http://127.0.0.1:0",
 ])
 def test_endpoint_rejects_nonlocal_or_ambiguous_origins(endpoint: str) -> None:
     with pytest.raises(ValueError):
@@ -99,3 +100,52 @@ def test_disabled_assistant_never_contacts_model(monkeypatch, tmp_path) -> None:
             "What is due?"
         )
     storage.close()
+
+
+@pytest.mark.parametrize("provider,models_path,chat_path,models_response,chat_response", [
+    ("ollama", "/api/tags", "/api/chat", {"models": [{"name": "local-model"}]},
+     {"message": {"content": "A local answer."}}),
+    ("llama.cpp", "/v1/models", "/v1/chat/completions",
+     {"data": [{"id": "local-model"}]},
+     {"choices": [{"message": {"content": "A local answer."}}]}),
+])
+def test_model_adapters_use_expected_local_api(monkeypatch, provider, models_path,
+                                               chat_path, models_response,
+                                               chat_response) -> None:
+    import json
+
+    calls = []
+
+    class Response:
+        def __init__(self, body):
+            self.body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            pass
+
+        def read(self, _size):
+            return json.dumps(self.body).encode()
+
+    class Opener:
+        def open(self, request, timeout):
+            calls.append((request, timeout))
+            return Response(models_response if len(calls) == 1 else chat_response)
+
+    monkeypatch.setattr("solar_forge_desktop.local_models.build_opener",
+                        lambda *_handlers: Opener())
+    client = LocalModelClient(AssistantSettings(True, provider,
+                                                 "http://127.0.0.1:11434",
+                                                 "local-model", True, False))
+    assert client.models() == ("local-model",)
+    assert client.ask("system", "user") == "A local answer."
+    assert calls[0][0].full_url == "http://127.0.0.1:11434" + models_path
+    assert calls[0][0].get_method() == "GET"
+    assert calls[1][0].full_url == "http://127.0.0.1:11434" + chat_path
+    assert calls[1][0].get_method() == "POST"
+    payload = json.loads(calls[1][0].data)
+    assert payload["messages"] == [{"role": "system", "content": "system"},
+                                   {"role": "user", "content": "user"}]
+    assert payload["stream"] is False

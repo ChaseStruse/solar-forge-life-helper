@@ -241,6 +241,8 @@ class AssistantPage(QWidget):
         self._worker.submit(lambda: self.service.ask(question), self._answered)
 
     def _answered(self, result: object) -> None:
+        if not self.settings.load(self.profile_id).enabled:
+            return
         reply: AssistantReply = result
         self.answer.setPlainText(reply.answer)
         self.records.setPlainText("\n".join(reply.records))
@@ -250,9 +252,10 @@ class AssistantPage(QWidget):
         self.status.setText(str(error))
 
     def _set_busy(self, busy: bool) -> None:
-        for control in (self.test_button, self.enable_button, self.disable_button,
-                        self.ask_button):
+        for control in (self.test_button, self.enable_button, self.ask_button):
             control.setEnabled(not busy)
+        if busy:
+            self.disable_button.setEnabled(self.settings.load(self.profile_id).enabled)
         if not busy:
             try:
                 enabled = self.settings.load(self.profile_id).enabled
