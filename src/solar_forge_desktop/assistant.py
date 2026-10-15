@@ -11,6 +11,7 @@ from solar_forge_desktop.assistant_guidance import (
 )
 from solar_forge_desktop.assistant_settings import AssistantSettingsStore
 from solar_forge_desktop.calendar import CalendarService
+from solar_forge_desktop.calendar import occurrences as expand_occurrences
 from solar_forge_desktop.local_models import LocalModelClient
 from solar_forge_desktop.storage import Storage
 from solar_forge_desktop.tasks import TaskService
@@ -88,11 +89,18 @@ class AssistantService:
             for event in self.calendar.find_events(self.profile_id, terms, today):
                 if event.id in included_events:
                     continue
+                if event.recurrence == "none":
+                    start, end = event.starts_at, event.ends_at
+                else:
+                    upcoming = expand_occurrences(event, today, today + timedelta(days=365))
+                    if not upcoming:
+                        continue
+                    start, end = upcoming[0].starts_at, upcoming[0].ends_at
                 records.append(
                     f"Event #{event.id}: {event.title} | owner: #{event.profile_id} | "
-                    f"start: {event.starts_at.isoformat(timespec='minutes')} | "
-                    f"end: {event.ends_at.isoformat(timespec='minutes')} | "
-                    f"{event.visibility}"
+                    f"start: {start.isoformat(timespec='minutes')} | "
+                    f"end: {end.isoformat(timespec='minutes')} | "
+                    f"repeat: {event.recurrence} | {event.visibility}"
                 )
         return tuple(records)
 

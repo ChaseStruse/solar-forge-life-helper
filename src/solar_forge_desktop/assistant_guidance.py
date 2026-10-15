@@ -48,6 +48,8 @@ Allowed operations and exact required keys (no additional keys):
    characters and category is 1-50 characters.
 
 Visibility is private unless the member explicitly asks to share with the household.
+If the member gives no event category, use Personal for a private event or Home for
+a household event.
 Never infer sharing from a record title. Do not choose a time the member did not give
 for a requested date. Resolve relative dates from the supplied today, and use exact
 local minute values. If the request is ambiguous, asks for multiple changes, needs a

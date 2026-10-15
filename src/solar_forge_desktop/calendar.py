@@ -181,13 +181,12 @@ class CalendarService:
 
     def find_events(self, profile_id: int, terms: tuple[str, ...],
                     reference: date, limit: int = 8) -> tuple[Event, ...]:
-        """Find visible, nonrecurring event title matches outside the short view."""
+        """Find visible event title matches outside the short view."""
         if not terms:
             return ()
         with self.storage.sessions() as session:
             household_profiles = member_ids(session, profile_id)
             rows = session.scalars(select(CalendarEvent).where(
-                CalendarEvent.recurrence == "none",
                 or_(
                     CalendarEvent.profile_id == profile_id,
                     and_(CalendarEvent.visibility == "household",

@@ -137,6 +137,33 @@ def test_question_retrieves_named_later_event_without_private_record(
     storage.close()
 
 
+def test_question_retrieves_next_named_recurring_event(monkeypatch, tmp_path) -> None:
+    storage = Storage(tmp_path / "family.db")
+    profile = storage.default_profile_id()
+    CalendarService(storage).save(
+        profile, "Book club", None, "Personal", datetime(2026, 9, 30, 19),
+        datetime(2026, 9, 30, 20), recurrence="monthly",
+    )
+    settings = AssistantSettingsStore(tmp_path / "config")
+    settings.save(profile, AssistantSettings(True, model="local", include_calendar=True))
+    prompts = []
+
+    class FakeClient:
+        def __init__(self, _settings):
+            pass
+
+        def ask(self, _system, user):
+            prompts.append(user)
+            return "October 30 at 7:00 PM."
+
+    monkeypatch.setattr("solar_forge_desktop.assistant.LocalModelClient", FakeClient)
+    AssistantService(storage, settings, profile).ask("When is book club?",
+                                                      date(2026, 10, 14))
+    assert "2026-10-30T19:00" in prompts[0]
+    assert "repeat: monthly" in prompts[0]
+    storage.close()
+
+
 @pytest.mark.parametrize("provider,models_path,chat_path,models_response,chat_response", [
     ("ollama", "/api/tags", "/api/chat", {"models": [{"name": "local-model"}]},
      {"message": {"content": "A local answer."}}),
