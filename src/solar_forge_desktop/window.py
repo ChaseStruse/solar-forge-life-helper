@@ -505,6 +505,7 @@ class TaskWindow(QMainWindow):
         self.assistant_page = AssistantPage(
             self.service.storage, AssistantSettingsStore(assistant_directory), self.profile_id
         )
+        self.assistant_page.action_applied.connect(self._assistant_action_applied)
         self.pages.addWidget(self.assistant_page)
         content_layout.addWidget(self.pages, 1)
         outer.addWidget(content, 1)
@@ -842,6 +843,12 @@ class TaskWindow(QMainWindow):
 
     def show_assistant(self) -> None:
         self._show_page(14, "Local Assistant")
+
+    def _assistant_action_applied(self, operation: str) -> None:
+        if operation == "create_event":
+            self.calendar_page.refresh()
+        else:
+            self.refresh()
 
     def show_storage_settings(self) -> None:
         if self.settings_store is not None and self.data_directory is not None:

@@ -61,3 +61,44 @@ def test_member_can_enable_ask_and_disable_assistant(qtbot, monkeypatch, tmp_pat
     assert not page.answer.toPlainText()
     assert not page.records.toPlainText()
     window.close()
+
+
+def test_action_preview_requires_explicit_approval(qtbot, monkeypatch, tmp_path) -> None:
+    storage = Storage(tmp_path / "family.db")
+    profile = storage.default_profile_id()
+    settings = SettingsStore(tmp_path / "config")
+    window = TaskWindow(TaskService(storage), profile, storage.close,
+                        settings_store=settings, data_directory=tmp_path)
+    qtbot.addWidget(window)
+    window.show()
+    window.show_assistant()
+    page = window.assistant_page
+    page.model.setCurrentText("local-model")
+    page.tasks.setChecked(True)
+    qtbot.mouseClick(page.enable_button, Qt.MouseButton.LeftButton)
+
+    class FakeClient:
+        def __init__(self, _settings):
+            pass
+
+        def ask(self, _system, _prompt):
+            return ('{"operation":"create_task","title":"Call dentist",'
+                    '"due_at":null,"visibility":"private"}')
+
+    monkeypatch.setattr("solar_forge_desktop.assistant_actions.LocalModelClient", FakeClient)
+    page.change_request.setText("Add a task to call the dentist")
+    qtbot.mouseClick(page.propose_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: page.approve_button.isEnabled(), timeout=5000)
+    assert "Call dentist" in page.preview.toPlainText()
+    assert TaskService(storage).list_tasks(profile)[0] == []
+    qtbot.mouseClick(page.cancel_button, Qt.MouseButton.LeftButton)
+    assert TaskService(storage).list_tasks(profile)[0] == []
+    assert "rejected" in page.history.toPlainText()
+
+    qtbot.mouseClick(page.propose_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: page.approve_button.isEnabled())
+    qtbot.mouseClick(page.approve_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: "Approved change saved" in page.status.text())
+    assert TaskService(storage).list_tasks(profile)[0][0].title == "Call dentist"
+    assert "approved" in page.history.toPlainText()
+    window.close()

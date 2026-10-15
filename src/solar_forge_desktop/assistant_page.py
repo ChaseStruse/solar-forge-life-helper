@@ -1,7 +1,8 @@
-"""Opt-in local assistant setup and read-only questions."""
+"""Opt-in local questions and explicitly approved record changes."""
 
 from dataclasses import replace
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from solar_forge_desktop.assistant import AssistantReply, AssistantService
+from solar_forge_desktop.assistant_actions import AssistantActionService, Proposal
 from solar_forge_desktop.assistant_settings import (
     AssistantSettings,
     AssistantSettingsStore,
@@ -38,12 +40,16 @@ QPlainTextEdit:focus { border-color: #8b5cf6; }
 
 
 class AssistantPage(QWidget):
+    action_applied = Signal(str)
+
     def __init__(self, storage: Storage, settings: AssistantSettingsStore,
                  profile_id: int, parent=None):
         super().__init__(parent)
         self.settings = settings
         self.profile_id = profile_id
         self.service = AssistantService(storage, settings, profile_id)
+        self.actions = AssistantActionService(storage, settings, profile_id)
+        self.pending: Proposal | None = None
         self._worker = BackgroundWorker(self, "solar-forge-assistant")
         self._worker.busy_changed.connect(self._set_busy)
         self._worker.failed.connect(self._show_error)
@@ -65,7 +71,7 @@ class AssistantPage(QWidget):
         layout.addWidget(title)
         note = QLabel(
             "Off until you enable it. Questions and the selected record summaries go "
-            "only to a model server on this computer. Answers cannot change your records."
+            "only to a model server on this computer. Proposed changes require your approval."
         )
         note.setObjectName("assistantHint")
         note.setWordWrap(True)
@@ -146,6 +152,47 @@ class AssistantPage(QWidget):
         self.records.setPlaceholderText("No records sent yet.")
         self.records.setMinimumHeight(115)
         layout.addWidget(self.records)
+
+        layout.addSpacing(14)
+        action_title = QLabel("Request one change")
+        layout.addWidget(action_title)
+        action_hint = QLabel(
+            "Create a task, update one of your open tasks, or create a calendar event. "
+            "The model drafts one change; nothing is saved until you review and approve it."
+        )
+        action_hint.setObjectName("assistantHint")
+        action_hint.setWordWrap(True)
+        layout.addWidget(action_hint)
+        self.change_request = QLineEdit()
+        self.change_request.setAccessibleName("Change request for local assistant")
+        self.change_request.setMaxLength(500)
+        self.change_request.setPlaceholderText("Add a private task to call the dentist tomorrow")
+        layout.addWidget(self.change_request)
+        self.propose_button = QPushButton("Draft change for review")
+        self.propose_button.clicked.connect(self._propose)
+        layout.addWidget(self.propose_button)
+        self.preview = QPlainTextEdit()
+        self.preview.setAccessibleName("Exact proposed change")
+        self.preview.setReadOnly(True)
+        self.preview.setPlaceholderText("A proposed change will appear here.")
+        self.preview.setMinimumHeight(155)
+        layout.addWidget(self.preview)
+        decision = QHBoxLayout()
+        self.approve_button = QPushButton("Approve this change")
+        self.approve_button.setObjectName("primary")
+        self.approve_button.clicked.connect(self._approve)
+        decision.addWidget(self.approve_button)
+        self.cancel_button = QPushButton("Cancel proposal")
+        self.cancel_button.clicked.connect(self._cancel)
+        decision.addWidget(self.cancel_button)
+        decision.addStretch()
+        layout.addLayout(decision)
+        layout.addWidget(QLabel("Recent assistant decisions"))
+        self.history = QPlainTextEdit()
+        self.history.setAccessibleName("Assistant action history")
+        self.history.setReadOnly(True)
+        self.history.setMinimumHeight(90)
+        layout.addWidget(self.history)
         layout.addStretch()
         scroll.setWidget(page)
         outer = QVBoxLayout(self)
@@ -168,6 +215,9 @@ class AssistantPage(QWidget):
         self.calendar.setChecked(settings.include_calendar)
         self.disable_button.setEnabled(settings.enabled)
         self.ask_button.setEnabled(settings.enabled)
+        self.propose_button.setEnabled(settings.enabled)
+        self._clear_proposal()
+        self._refresh_history()
 
     def _default_endpoint(self) -> None:
         current = self.endpoint.text().strip()
@@ -210,9 +260,12 @@ class AssistantPage(QWidget):
         self.status.setText("Enabled for this member. Only checked categories are included.")
         self.disable_button.setEnabled(True)
         self.ask_button.setEnabled(True)
+        self.propose_button.setEnabled(True)
 
     def _disable(self) -> None:
         try:
+            if self.pending:
+                self.actions.reject(self.pending)
             current = self.settings.load(self.profile_id)
             self.settings.save(self.profile_id, replace(current, enabled=False))
         except (OSError, ValueError) as exc:
@@ -220,9 +273,12 @@ class AssistantPage(QWidget):
             return
         self.answer.clear()
         self.records.clear()
+        self._clear_proposal()
+        self._refresh_history()
         self.status.setText("Off for this member. No records will be sent.")
         self.disable_button.setEnabled(False)
         self.ask_button.setEnabled(False)
+        self.propose_button.setEnabled(False)
 
     def _ask(self) -> None:
         try:
@@ -248,12 +304,85 @@ class AssistantPage(QWidget):
         self.records.setPlainText("\n".join(reply.records))
         self.status.setText(f"Answer ready. {len(reply.records)} record summaries used.")
 
+    def _propose(self) -> None:
+        try:
+            saved = self.settings.load(self.profile_id)
+            if not saved.enabled or self._form_settings(True) != saved:
+                raise ValueError("Enable the assistant and save permission changes first.")
+            if self.pending:
+                self.actions.reject(self.pending)
+                self._clear_proposal()
+                self._refresh_history()
+        except (OSError, ValueError) as exc:
+            self._show_error(exc)
+            return
+        request = self.change_request.text()
+        self.status.setText("Drafting one change for your review…")
+        self._worker.submit(lambda: self.actions.propose(request), self._proposed)
+
+    def _proposed(self, result: object) -> None:
+        if not self.settings.load(self.profile_id).enabled:
+            return
+        proposal: Proposal = result
+        self.pending = proposal
+        self.preview.setPlainText(proposal.preview(self.profile_id))
+        self.records.setPlainText("\n".join(proposal.records))
+        self.approve_button.setEnabled(True)
+        self.cancel_button.setEnabled(True)
+        self.status.setText("Review every field, then approve or cancel this one change.")
+
+    def _approve(self) -> None:
+        if self.pending is None:
+            return
+        proposal = self.pending
+        self._clear_proposal()
+        self.status.setText("Applying your approved change…")
+        self._worker.submit(lambda: self.actions.approve(proposal),
+                            lambda result: self._applied(proposal, result))
+
+    def _applied(self, proposal: Proposal, result: object) -> None:
+        self.status.setText(f"Approved change saved as #{result}.")
+        self._refresh_history()
+        self.action_applied.emit(proposal.operation)
+
+    def _cancel(self) -> None:
+        if self.pending is None:
+            return
+        try:
+            self.actions.reject(self.pending)
+        except (OSError, ValueError) as exc:
+            self._show_error(exc)
+            return
+        self._clear_proposal()
+        self._refresh_history()
+        self.status.setText("Proposal canceled. No record was changed.")
+
+    def _clear_proposal(self) -> None:
+        self.pending = None
+        self.preview.clear()
+        self.approve_button.setEnabled(False)
+        self.cancel_button.setEnabled(False)
+
+    def _refresh_history(self) -> None:
+        try:
+            entries = self.actions.audit.recent()
+            self.history.setPlainText("\n".join(
+                f"{entry['at']} · {entry['decision']} · {entry['operation']} · "
+                f"{entry['fields'].get('title', '')}" for entry in entries
+            ))
+        except (OSError, ValueError):
+            self.history.setPlainText("Action history could not be read.")
+
     def _show_error(self, error: Exception) -> None:
         self.status.setText(str(error))
 
     def _set_busy(self, busy: bool) -> None:
-        for control in (self.test_button, self.enable_button, self.ask_button):
+        for control in (self.test_button, self.enable_button, self.ask_button,
+                        self.propose_button):
             control.setEnabled(not busy)
+        if busy:
+            self.approve_button.setEnabled(False)
+            self.cancel_button.setEnabled(False)
         if busy:
             self.disable_button.setEnabled(self.settings.load(self.profile_id).enabled)
         if not busy:
@@ -263,6 +392,9 @@ class AssistantPage(QWidget):
                 enabled = False
             self.disable_button.setEnabled(enabled)
             self.ask_button.setEnabled(enabled)
+            self.propose_button.setEnabled(enabled)
+            self.approve_button.setEnabled(enabled and self.pending is not None)
+            self.cancel_button.setEnabled(enabled and self.pending is not None)
 
     def shutdown(self) -> None:
         self._worker.shutdown()
