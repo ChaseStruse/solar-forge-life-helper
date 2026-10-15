@@ -58,6 +58,34 @@ class TaskService:
             session.flush()
             return task.id
 
+    def get_task(self, profile_id: int, task_id: int) -> TaskItem:
+        with self.storage.sessions() as session:
+            require_actor(session, profile_id)
+            row = session.get(Task, task_id)
+            if row is None or not can_read(session, profile_id, row.profile_id, row.visibility):
+                raise ValueError("Task not found.")
+            return TaskItem(row.id, row.title, row.completed, row.created_at,
+                            row.completed_at, row.profile_id, row.visibility, row.due_at)
+
+    def update_owned_task(self, profile_id: int, task_id: int, title: str,
+                          due_at: datetime | None, expected: TaskItem) -> None:
+        """Apply an approved replacement only if the owner's task is unchanged."""
+        clean_title = title.strip() if isinstance(title, str) else ""
+        if not clean_title or len(clean_title) > 200:
+            raise ValueError("Task title is required and must be 200 characters or fewer.")
+        due = self._due_value(due_at)
+        with self.storage.sessions.begin() as session:
+            require_actor(session, profile_id)
+            row = session.get(Task, task_id)
+            if row is None or row.profile_id != profile_id:
+                raise ValueError("Only your own task can be updated by the assistant.")
+            if (row.title, row.due_at, row.completed, row.visibility, row.created_at) != (
+                    expected.title, expected.due_at, expected.completed,
+                    expected.visibility, expected.created_at):
+                raise ValueError("This task changed since the preview. Request a new proposal.")
+            row.title = clean_title
+            row.due_at = due
+
     @staticmethod
     def _due_value(due_at: datetime | None) -> str | None:
         if due_at is None:
