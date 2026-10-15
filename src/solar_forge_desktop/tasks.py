@@ -67,6 +67,24 @@ class TaskService:
             return TaskItem(row.id, row.title, row.completed, row.created_at,
                             row.completed_at, row.profile_id, row.visibility, row.due_at)
 
+    def find_owned_open_tasks(self, profile_id: int, terms: tuple[str, ...],
+                              limit: int = 8) -> tuple[TaskItem, ...]:
+        """Find bounded title matches for a member's assistant context."""
+        if not terms:
+            return ()
+        with self.storage.sessions() as session:
+            require_actor(session, profile_id)
+            rows = session.scalars(select(Task).where(
+                Task.profile_id == profile_id, Task.completed.is_(False)
+            )).all()
+            matches = [row for row in rows if any(term in row.title.casefold()
+                                                   for term in terms)]
+            matches.sort(key=lambda row: (-sum(term in row.title.casefold()
+                                               for term in terms), -row.id))
+            return tuple(TaskItem(row.id, row.title, row.completed, row.created_at,
+                                  row.completed_at, row.profile_id, row.visibility, row.due_at)
+                         for row in matches[:limit])
+
     def update_owned_task(self, profile_id: int, task_id: int, title: str,
                           due_at: datetime | None, expected: TaskItem) -> None:
         """Apply an approved replacement only if the owner's task is unchanged."""

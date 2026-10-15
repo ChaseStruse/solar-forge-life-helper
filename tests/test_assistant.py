@@ -102,6 +102,41 @@ def test_disabled_assistant_never_contacts_model(monkeypatch, tmp_path) -> None:
     storage.close()
 
 
+def test_question_retrieves_named_later_event_without_private_record(
+        monkeypatch, tmp_path) -> None:
+    storage = Storage(tmp_path / "family.db")
+    owner = storage.default_profile_id()
+    member = storage.create_profile("Member")
+    calendar = CalendarService(storage)
+    calendar.save(owner, "Dentist private appointment", None, "Personal",
+                  datetime(2026, 12, 1, 9), datetime(2026, 12, 1, 10))
+    calendar.save(member, "Dentist checkup", None, "Personal",
+                  datetime(2026, 12, 2, 9), datetime(2026, 12, 2, 10))
+    settings = AssistantSettingsStore(tmp_path / "config")
+    settings.save(member, AssistantSettings(True, model="local", include_calendar=True))
+    calls = []
+
+    class FakeClient:
+        def __init__(self, _settings):
+            pass
+
+        def ask(self, system, user):
+            calls.append((system, user))
+            return "Your dentist checkup is December 2 at 9:00."
+
+    monkeypatch.setattr("solar_forge_desktop.assistant.LocalModelClient", FakeClient)
+    reply = AssistantService(storage, settings, member).ask(
+        "When is my dentist checkup?", date(2026, 10, 14)
+    )
+    assert "Dentist checkup" in calls[0][1]
+    assert "Dentist private appointment" not in calls[0][1]
+    assert "2026-12-02T09:00" in calls[0][1]
+    assert "selected_records" in calls[0][1]
+    assert "may omit other records" in calls[0][0]
+    assert reply.records
+    storage.close()
+
+
 @pytest.mark.parametrize("provider,models_path,chat_path,models_response,chat_response", [
     ("ollama", "/api/tags", "/api/chat", {"models": [{"name": "local-model"}]},
      {"message": {"content": "A local answer."}}),

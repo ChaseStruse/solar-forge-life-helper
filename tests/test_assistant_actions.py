@@ -139,6 +139,45 @@ def test_stored_prompt_injection_cannot_select_another_members_task(
     storage.close()
 
 
+def test_update_proposal_finds_owned_task_beyond_upcoming_window(
+        tmp_path, monkeypatch) -> None:
+    storage, owner, member, _, service = setup_action_service(tmp_path)
+    tasks = TaskService(storage)
+    own_id = tasks.add_task(member, "Call dentist", due_at=datetime(2026, 12, 1, 9))
+    tasks.add_task(owner, "Dentist private", due_at=datetime(2026, 12, 1, 8))
+    calls = []
+
+    class FakeClient:
+        def __init__(self, _settings):
+            pass
+
+        def ask(self, system, prompt):
+            calls.append((system, prompt))
+            return json.dumps({"operation": "update_task", "task_id": own_id,
+                               "title": "Call dentist", "due_at": "2026-12-02T10:30"})
+
+    monkeypatch.setattr("solar_forge_desktop.assistant_actions.LocalModelClient", FakeClient)
+    proposal = service.propose("Move my dentist task to December 2 at 10:30",
+                               date(2026, 10, 14))
+    assert "Call dentist" in calls[0][1]
+    assert "Dentist private" not in calls[0][1]
+    assert "editable: yes" in calls[0][1]
+    assert "update_task" in calls[0][0]
+    assert "2026-12-02T10:30" in proposal.preview(member)
+    assert tasks.get_task(member, own_id).due_at == "2026-12-01T09:00"
+    service.approve(proposal)
+    assert tasks.get_task(member, own_id).due_at == "2026-12-02T10:30"
+    storage.close()
+
+
+def test_clarification_explains_missing_detail(tmp_path) -> None:
+    storage = Storage(tmp_path / "family.db")
+    with pytest.raises(ValueError, match="What time"):
+        parse_proposal('{"clarification":"What time should the event start?"}', (),
+                       TaskService(storage), storage.default_profile_id())
+    storage.close()
+
+
 @pytest.mark.parametrize("raw", [
     '{"operation":"create_task","title":"x","due_at":null,"visibility":"private",'
     '"extra":"surprise"}',
