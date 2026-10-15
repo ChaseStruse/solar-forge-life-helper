@@ -179,6 +179,28 @@ class CalendarService:
                 raise ValueError("Calendar event not found.")
             return _event(row)
 
+    def find_events(self, profile_id: int, terms: tuple[str, ...],
+                    reference: date, limit: int = 8) -> tuple[Event, ...]:
+        """Find visible event title matches outside the short view."""
+        if not terms:
+            return ()
+        with self.storage.sessions() as session:
+            household_profiles = member_ids(session, profile_id)
+            rows = session.scalars(select(CalendarEvent).where(
+                or_(
+                    CalendarEvent.profile_id == profile_id,
+                    and_(CalendarEvent.visibility == "household",
+                         CalendarEvent.profile_id.in_(household_profiles)),
+                ),
+            )).all()
+            matches = [row for row in rows if any(term in row.title.casefold()
+                                                   for term in terms)]
+            matches.sort(key=lambda row: (
+                -sum(term in row.title.casefold() for term in terms),
+                abs((date.fromisoformat(row.starts_at[:10]) - reference).days), row.id,
+            ))
+            return tuple(_event(row) for row in matches[:limit])
+
     def save(self, profile_id: int, title: str, description: str | None, category: str,
              starts_at: datetime, ends_at: datetime, all_day: bool = False,
              recurrence: str = "none", recurrence_until: date | None = None,

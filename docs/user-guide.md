@@ -22,6 +22,10 @@ The dashboard rearranges its cards as you resize the window. Each account sees i
 | Meal Planner | Plan dinners by week, reuse favorite meals, and build a grocery list from their ingredients. |
 | Home Maintenance | Track recurring due dates, set optional reminders, and mark work complete. |
 | Calendar | Plan timed or all-day events, switch between month and week views, create recurring series, share events with the household, and set reminders for timed events. |
+| Local Assistant | Ask a local model about selected visible tasks and events, or review and explicitly approve one drafted task or event change. |
+
+The [local assistant guide](local-assistant.md) explains setup, the exact allowed
+changes, and how to review or cancel a proposal before any record is changed.
 
 ## Profile and accounts
 

@@ -9,5 +9,7 @@ Solar Forge Life Helper is a local Python/PySide6 desktop app for everyday plann
 - [Data and migration](data-and-migration.md): find, move, and back up your data.
 - [Development](development.md): project layout, checks, and contribution workflow.
 - [Implementation plan](implementation-plan.md): the phased path to family sharing, user-chosen storage, backups, reminders, and a local assistant.
+- [Local assistant](local-assistant.md): opt-in setup, record scope, and local-model privacy limits.
+- [Local model contract](assistant-model-contract.md): the model's live instructions, available records, and approved action schemas.
 
 The [repository README](../README.md) has a short project summary and launch commands.

@@ -7,6 +7,10 @@ then shows a Dashboard with working Easy Budget, Task List, Easy Journal,
 Medicine Tracker, Habit Tracker, Calorie Tracker, Weight Tracker, Workout Tracker,
 Pet Care, Meal Planner, Home Maintenance, and Calendar cards and sidebar navigation.
 The avatar button opens Solar Forge Profile for editing the display name, bio, and avatar.
+The Local Assistant sidebar page can answer questions about selected visible tasks and
+calendar events with a separately running Ollama or llama.cpp model on the same computer.
+It can also draft a task or event change for explicit review and one-time approval.
+It starts disabled for every member; see the [local assistant guide](docs/local-assistant.md).
 Dashboard app cards reflow from one column on a narrow window to four at 1280px,
 five at 1600px, and six at 1920px.
 Easy Budget supports monthly income, expenses, recurrence, filtering, sorting and CSV
