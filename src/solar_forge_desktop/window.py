@@ -29,6 +29,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from solar_forge_desktop.assistant_page import STYLE as ASSISTANT_STYLE
+from solar_forge_desktop.assistant_page import AssistantPage
+from solar_forge_desktop.assistant_settings import AssistantSettingsStore
 from solar_forge_desktop.backup_scheduler import BackupScheduler
 from solar_forge_desktop.budget import BudgetService
 from solar_forge_desktop.budget_page import STYLE as BUDGET_STYLE
@@ -385,6 +388,12 @@ class TaskWindow(QMainWindow):
         self.calendar_nav.setCheckable(True)
         self.calendar_nav.clicked.connect(self.show_calendar)
         nav.addWidget(self.calendar_nav)
+        self.assistant_nav = QPushButton("✦   Local Assistant")
+        self.assistant_nav.setObjectName("nav")
+        self.assistant_nav.setAccessibleName("Local Assistant")
+        self.assistant_nav.setCheckable(True)
+        self.assistant_nav.clicked.connect(self.show_assistant)
+        nav.addWidget(self.assistant_nav)
         nav.addStretch()
         if self.settings_store is not None and self.data_directory is not None:
             settings = QPushButton("⚙   Settings")
@@ -491,6 +500,12 @@ class TaskWindow(QMainWindow):
         self.profile_page = ProfilePage(ProfileService(self.service.storage),
                                         self.profile_id, self._profile_saved)
         self.pages.addWidget(self.profile_page)
+        assistant_directory = (self.settings_store.path.parent if self.settings_store
+                               else self.service.storage.path.parent / "config")
+        self.assistant_page = AssistantPage(
+            self.service.storage, AssistantSettingsStore(assistant_directory), self.profile_id
+        )
+        self.pages.addWidget(self.assistant_page)
         content_layout.addWidget(self.pages, 1)
         outer.addWidget(content, 1)
         self.topbar_layout = topbar_layout
@@ -528,6 +543,8 @@ class TaskWindow(QMainWindow):
             self.show_maintenance()
         elif "calendar" in query or "event" in query:
             self.show_calendar()
+        elif "assistant" in query or "local ai" in query:
+            self.show_assistant()
         elif "profile" in query or "account" in query:
             self.show_profile()
         elif "dashboard" in query or "home" in query:
@@ -565,6 +582,7 @@ class TaskWindow(QMainWindow):
             (self.maintenance_page, MAINTENANCE_STYLE),
             (self.calendar_page, CALENDAR_STYLE),
             (self.profile_page, PROFILE_STYLE),
+            (self.assistant_page, ASSISTANT_STYLE),
         )
         for page, style in page_styles:
             page.setStyleSheet(_themed_style(style, name))
@@ -715,6 +733,7 @@ class TaskWindow(QMainWindow):
             self.maintenance_nav, self.calendar_nav,
         )):
             button.setChecked(position == index)
+        self.assistant_nav.setChecked(index == 14)
         self.setWindowTitle(f"Solar Forge Life Helper — {title}")
 
     def show_dashboard(self) -> None:
@@ -820,6 +839,9 @@ class TaskWindow(QMainWindow):
     def show_profile(self) -> None:
         self._show_page(13, "Solar Forge Profile")
         self.profile_page.activate()
+
+    def show_assistant(self) -> None:
+        self._show_page(14, "Local Assistant")
 
     def show_storage_settings(self) -> None:
         if self.settings_store is not None and self.data_directory is not None:
@@ -1223,5 +1245,6 @@ class TaskWindow(QMainWindow):
         self.maintenance_page.shutdown()
         self.calendar_page.shutdown()
         self.profile_page.shutdown()
+        self.assistant_page.shutdown()
         self.on_close()
         super().closeEvent(event)
